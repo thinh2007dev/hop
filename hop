@@ -1,0 +1,554 @@
+-- CT_WhiteScanner_V2.lua
+-- 1) Fix lag  2) White screen + timer  3) Ẩn lỗi teleport
+-- 4) Target list  5) Gửi webhook (giữ nguyên logic bạn đưa)
+
+repeat task.wait() until game:IsLoaded()
+
+--// Services
+local Players     = game:GetService('Players')
+local Lighting    = game:GetService('Lighting')
+local RunService  = game:GetService('RunService')
+local UIS         = game:GetService('UserInputService')
+local HttpService = game:GetService('HttpService')
+local LP          = Players.LocalPlayer
+
+--==================================================
+-- 1) TỐI ƯU ĐỒ HỌA / FIX LAG
+--==================================================
+pcall(function()
+    local rs = settings():GetService('RenderSettings')
+    if rs then rs.QualityLevel = Enum.QualityLevel.Level01 end
+end)
+
+pcall(function()
+    Lighting.GlobalShadows = false
+    Lighting.EnvironmentDiffuseScale = 0
+    Lighting.EnvironmentSpecularScale = 0
+    Lighting.FogEnd = 1000
+    Lighting.Brightness = 1
+    Lighting.ClockTime = 12
+    Lighting.ShadowSoftness = 0
+
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA('BloomEffect') or v:IsA('SunRaysEffect') or v:IsA('DepthOfFieldEffect')
+        or v:IsA('BlurEffect') or v:IsA('ColorCorrectionEffect') then
+            pcall(function() v.Enabled = false end)
+        end
+    end
+
+    local function ensureEffect(cls, name)
+        local eff = Lighting:FindFirstChild(name)
+        if not eff then
+            local bycls = Lighting:FindFirstChildOfClass(cls)
+            if bycls then eff = bycls; eff.Name = name
+            else eff = Instance.new(cls); eff.Name = name; eff.Parent = Lighting end
+        end
+        pcall(function() eff.Enabled = false end)
+    end
+
+    ensureEffect('SunRaysEffect', 'SunRays')
+    ensureEffect('BloomEffect', 'Bloom')
+    ensureEffect('DepthOfFieldEffect', 'DepthOfField')
+    ensureEffect('BlurEffect', 'Blur')
+    ensureEffect('ColorCorrectionEffect', 'ColorCorrection')
+end)
+
+pcall(function()
+    local Terrain = workspace:FindFirstChildOfClass('Terrain')
+    if Terrain then
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 1
+    end
+    workspace.StreamingEnabled = true
+    workspace.LevelOfDetail = Enum.ModelLevelOfDetail.Disabled
+end)
+
+local okDesc, descs = pcall(workspace.GetDescendants, workspace)
+if okDesc and type(descs) == 'table' then
+    for _, inst in ipairs(descs) do
+        if inst:IsA('BasePart') then
+            pcall(function()
+                inst.Material = Enum.Material.SmoothPlastic
+                inst.CastShadow = false
+                inst.Reflectance = 0
+            end)
+        elseif inst:IsA('ParticleEmitter') or inst:IsA('Trail') or inst:IsA('Fire')
+            or inst:IsA('Smoke') or inst:IsA('Sparkles') then
+            pcall(function() inst.Enabled = false end)
+        elseif inst:IsA('Decal') or inst:IsA('Texture') then
+            pcall(function()
+                inst.Transparency = 1
+                inst.ZIndex = 0
+            end)
+        elseif inst:IsA('SurfaceAppearance') then
+            pcall(function() inst:Destroy() end)
+        end
+    end
+end
+
+print('✅ Đã tối ưu đồ họa xong!')
+
+--==================================================
+-- 2) WHITE SCREEN + TIMER (toggle bằng phím P)
+--==================================================
+local WHITE_ON_START = true
+local TOGGLE_KEY = Enum.KeyCode.P
+local WhiteGui, WhiteFrame, TimerLabel, WhiteOn = nil, nil, nil, false
+local startTime = tick()
+
+local function ensureWhite()
+    if WhiteGui and WhiteGui.Parent then return end
+    local pg = nil
+    local ok = pcall(function() pg = LP and LP:WaitForChild('PlayerGui', 10) end)
+    if not ok or not pg then warn('[WhiteScreen] PlayerGui not found'); return end
+
+    WhiteGui = Instance.new('ScreenGui')
+    WhiteGui.Name = 'WhiteOverlay'
+    WhiteGui.ResetOnSpawn = false
+    WhiteGui.IgnoreGuiInset = true
+    WhiteGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    WhiteGui.Parent = pg
+
+    WhiteFrame = Instance.new('Frame')
+    WhiteFrame.Size = UDim2.fromScale(1, 1)
+    WhiteFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+    WhiteFrame.BorderSizePixel = 0
+    WhiteFrame.Visible = false
+    WhiteFrame.Parent = WhiteGui
+
+    TimerLabel = Instance.new('TextLabel')
+    TimerLabel.Size = UDim2.new(0, 300, 0, 100)
+    TimerLabel.Position = UDim2.fromScale(0.5, 0.5)
+    TimerLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    TimerLabel.BackgroundTransparency = 1
+    TimerLabel.Text = '00:00:00'
+    TimerLabel.TextColor3 = Color3.new(0, 0, 0)
+    TimerLabel.TextSize = 48
+    TimerLabel.Font = Enum.Font.GothamBold
+    TimerLabel.TextStrokeTransparency = 0.8
+    TimerLabel.Parent = WhiteFrame
+end
+
+local function setWhite(b)
+    if not (WhiteGui and WhiteGui.Parent) then ensureWhite() end
+    if not (WhiteGui and WhiteGui.Parent) then return end
+    WhiteOn = b and true or false
+    if WhiteFrame then WhiteFrame.Visible = WhiteOn end
+end
+
+pcall(function()
+    UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == TOGGLE_KEY then
+            setWhite(not WhiteOn)
+        end
+    end)
+end)
+
+if WHITE_ON_START then setWhite(true) end
+
+task.spawn(function()
+    RunService.RenderStepped:Connect(function()
+        if TimerLabel then
+            local elapsed = tick() - startTime
+            local hours = math.floor(elapsed / 3600)
+            local minutes = math.floor((elapsed % 3600) / 60)
+            local seconds = math.floor(elapsed % 60)
+            TimerLabel.Text = string.format('%02d:%02d:%02d', hours, minutes, seconds)
+        end
+    end)
+end)
+
+--==================================================
+-- 3) ẨN BẢNG LỖI TELEPORT
+--==================================================
+task.spawn(function()
+    while task.wait(3) do
+        pcall(function()
+            local pg = LP:FindFirstChild('PlayerGui')
+            if pg then
+                for _, gui in ipairs(pg:GetChildren()) do
+                    if gui:IsA('ScreenGui') and gui.Enabled then
+                        for _, frame in ipairs(gui:GetDescendants()) do
+                            if frame:IsA('Frame') or frame:IsA('ImageLabel') then
+                                for _, textObj in ipairs(frame:GetDescendants()) do
+                                    if textObj:IsA('TextLabel') or textObj:IsA('TextButton') then
+                                        local text = string.lower(textObj.Text or '')
+                                        local errorKeywords = { '772' }
+                                        local isError = false
+                                        for _, kw in ipairs(errorKeywords) do
+                                            if text:find(kw) then isError = true break end
+                                        end
+                                        if isError then
+                                            frame.Visible = false
+                                            gui.Enabled = false
+                                            print('🚫 Đã ẩn bảng lỗi:', textObj.Text)
+                                            for _, btn in ipairs(frame:GetDescendants()) do
+                                                if btn:IsA('TextButton') then
+                                                    local btnText = string.lower(btn.Text or '')
+                                                    if btnText:find('ok') or btnText:find('đóng') or btnText:find('close') then
+                                                        pcall(function()
+                                                            for _, connection in pairs(getconnections(btn.MouseButton1Click)) do
+                                                                connection:Fire()
+                                                            end
+                                                        end)
+                                                    end
+                                                end
+                                            end
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                pcall(function()
+                    local coreGui = game:GetService('CoreGui')
+                    for _, gui in ipairs(coreGui:GetChildren()) do
+                        if gui:IsA('ScreenGui') then
+                            for _, desc in ipairs(gui:GetDescendants()) do
+                                if desc:IsA('TextLabel') then
+                                    local text = string.lower(desc.Text or '')
+                                    if text:find('772') or text:find('773') then
+                                        gui.Enabled = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+end)
+
+--==================================================
+-- 4) TARGET LIST
+--==================================================
+local targets = {
+    'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
+    'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
+    'La Grande Combinasion','Nuclearo Dinossauro','Esok Sekolah','Ketupat Kepat',
+    'Money Money Puggy','Tictac Sahur','Ketchuru and Musturu','Garama and Madundung',
+    'Spaghetti Tualetti','Dragon Cannelloni','67','Mariachi Corazoni','Tacorita Bicicleta',
+    'La Extinct Grande','Quesadilla Crocodila','Los Nooo My Hotspotsitos','Las Sis',
+    'Celularcini Viciosini','Los Bros','Tralaledon','Los Tacoritas','Los Primos',
+    'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
+    'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
+    'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
+}
+
+--==================================================
+-- 5) GỬI WEBHOOK (giữ NGUYÊN logic bạn đưa)
+--==================================================
+local urls = {
+    'https://discordapp.com/api/webhooks/1422467805558865942/lYqd7SPFk5nftbg_L9hrmJ4cAHgnXe7jJbw9H0ti0EQAaiMKh2eGWtpCfCTBZc8pKbzO',
+    'https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy'
+}
+-- alias cho một số executor (không đụng vào payload/logic của bạn)
+local http_request = http_request or request or (syn and syn.request)
+
+local lastJobIdSent = nil
+local function sendWebhook(foundTargets)
+    if not foundTargets or #foundTargets == 0 then
+        return
+    end
+
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+
+    if jobId == lastJobIdSent then
+        return
+    end
+    lastJobIdSent = jobId
+
+    local joinScript = "game:GetService('TeleportService'):TeleportToPlaceInstance("
+        .. placeId
+        .. ", '"
+        .. jobId
+        .. "', game.Players.LocalPlayer)"
+    local joinLink = 'https://chillihub1.github.io/chillihub-joiner/?placeId='
+        .. placeId
+        .. '&gameInstanceId='
+        .. jobId
+
+    -- 🎯 Tạo danh sách target với generation
+    local targetList = ''
+    for i, target in ipairs(foundTargets) do
+        local targetName = target.name or 'Unknown'
+        local generation = target.generation or 'N/A'
+        targetList = targetList
+            .. '✅ '
+            .. targetName
+            .. ' [ '
+            .. generation
+            .. ']'
+        if i < #foundTargets then
+            targetList = targetList .. '\n'
+        end
+    end
+
+    local payload = {
+        ['embeds'] = {
+            {
+                ['title'] = '🎯 Target Detected!',
+                ['description'] = targetList,
+                ['color'] = 0x00FF00,
+                ['fields'] = {
+                    {
+                        ['name'] = '👥 Players',
+                        ['value'] = tostring(#Players:GetPlayers())
+                            .. ' / '
+                            .. tostring(Players.MaxPlayers),
+                        ['inline'] = true,
+                    },
+                    {
+                        ['name'] = '🆔 JobId',
+                        ['value'] = '`' .. jobId .. '`',
+                        ['inline'] = false,
+                    },
+                    {
+                        ['name'] = '🌐 Join Link',
+                        ['value'] = '[Join Server](' .. joinLink .. ')',
+                        ['inline'] = false,
+                    },
+                    {
+                        ['name'] = '📜 Join Script',
+                        ['value'] = '```lua\n' .. joinScript .. '\n```',
+                        ['inline'] = false,
+                    },
+                },
+                ['footer'] = {
+                    ['text'] = 'Spyder Scanner | User: '
+                        .. Players.LocalPlayer.Name,
+                },
+                ['timestamp'] = DateTime.now():ToIsoDate(),
+            },
+        },
+    }
+
+    print('📤 [WEBHOOK] Đang gửi webhook...')
+
+for _, url in ipairs(urls) do
+    local success, result = pcall(function()
+        local response = http_request({
+            Url = url,
+            Method = 'POST',
+            Headers = { ['Content-Type'] = 'application/json' },
+            Body = HttpService:JSONEncode(payload),
+        })
+        return response
+    end)
+
+    if success then
+        print('✅ [WEBHOOK] Gửi thành công →', url)
+    else
+        print('❌ [WEBHOOK] Lỗi:', url, tostring(result))
+    end
+end
+
+    -- Log target name với generation
+    local logTargets = ''
+    for i, target in ipairs(foundTargets) do
+        logTargets = logTargets
+            .. target.name
+            .. ' ['
+            .. target.generation
+            .. ']'
+        if i < #foundTargets then
+            logTargets = logTargets .. ', '
+        end
+    end
+    print('✅ Phát hiện target:', logTargets)
+end
+
+--==================================================
+-- CHECK TARGETS + LOOP
+--==================================================
+local function checkTargets()
+    local foundTargets = {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA('TextLabel') and obj.Name == 'DisplayName' then
+            local txt = string.lower(obj.LocalizedText or '')
+
+            if string.upper(obj.LocalizedText or '') == 'FUSING' then
+                continue
+            end
+
+            for _, name in ipairs(targets) do
+                if string.find(txt, string.lower(name)) then
+                    local parent = obj.Parent
+                    local isStolen = false
+                    local generation = 'N/A'
+
+                    if parent then
+                        local stolenLabel = parent:FindFirstChild('Stolen')
+                        if stolenLabel and stolenLabel:IsA('TextLabel') then
+                            local stolenText = string.upper(stolenLabel.LocalizedText or '')
+                            if stolenText == 'FUSING' then
+                                isStolen = true
+                            end
+                        end
+
+                        for _, child in ipairs(parent:GetChildren()) do
+                            if child:IsA('TextLabel') then
+                                local childName = string.lower(child.Name or '')
+                                local childText = child.LocalizedText or ''
+
+                                if childName:find('generation') or childName:find('gen') then
+                                    generation = childText ~= '' and childText or generation
+                                    break
+                                end
+
+                                if childText:match('^G%d+') or childText:match('^G%d+%s') then
+                                    generation = childText
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    if not isStolen then
+                        table.insert(foundTargets, { name = name, generation = generation })
+                        print('✅ Found valid target:', name, '| Generation:', generation)
+                    else
+                        print('⚠️ Skipped (FUSING):', name)
+                    end
+                    break
+                end
+            end
+        end
+    end
+    return foundTargets
+end
+
+print('🎯 CT_WhiteScanner_V2 đang chạy... (quét mỗi 3s)')
+
+-- ✅ CHẠY NGAY LẦN ĐẦU KHI EXECUTE
+local initialTargets = checkTargets()
+if #initialTargets > 0 then
+    sendWebhook(initialTargets)
+else
+    print('⌛ Chưa phát hiện target nào khi khởi động.')
+end
+
+-- 🔁 LOOP QUÉT MỖI 3 GIÂY
+task.spawn(function()
+    while task.wait(3) do
+        local ok2, err = pcall(function()
+            local t = checkTargets()
+            if #t > 0 then sendWebhook(t) end
+        end)
+        if not ok2 then warn('⚠️ Scan loop error:', err) end
+    end
+end)
+-----------------------------------------------------------
+-- 🚀 CT AUTO JOIN (an toàn, không phụ thuộc hàm khác)
+-- - Chạy với Python /next của bạn (KHÔNG lọc private)
+-- - Tránh join lặp jobId, Delay 3s sau mỗi lần thử
+-----------------------------------------------------------
+task.delay(3, function()
+    local Players = game:GetService("Players")
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    local LocalPlayer = Players.LocalPlayer
+
+    -- ⚙️ Tìm hàm HTTP khả dụng
+    local http_request_impl = nil
+    if typeof(syn) == "table" and typeof(syn.request) == "function" then
+        http_request_impl = syn.request
+    elseif typeof(http_request) == "function" then
+        http_request_impl = http_request
+    elseif typeof(request) == "function" then
+        http_request_impl = request
+    elseif typeof(http) == "table" and typeof(http.request) == "function" then
+        http_request_impl = http.request
+    end
+
+    if not http_request_impl then
+        warn("❌ Không tìm thấy HTTP request function (syn.request / http_request / request / http.request).")
+        warn("👉 Hãy bật HTTP trong executor hoặc đổi executor.")
+        return
+    end
+
+    -- 🔗 Python endpoint của bạn
+    local HTTP_URL = "http://127.0.0.1:8080/next" -- đổi IP nếu Python chạy máy khác
+
+    -- 🧠 Tránh job trùng
+    local RECENT_MAX = 300
+    local recentQueue, recentSet = {}, {}
+    local function pushRecent(jid)
+        if not jid or jid == "" then return end
+        if recentSet[jid] then return end
+        table.insert(recentQueue, jid)
+        recentSet[jid] = true
+        if #recentQueue > RECENT_MAX then
+            local old = table.remove(recentQueue, 1)
+            if old then recentSet[old] = nil end
+        end
+    end
+
+    local DELAY_AFTER_TRY = 3 -- yêu cầu của bạn
+
+    print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay sau mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
+
+    task.spawn(function()
+        while true do
+            -- 1) Gọi Python lấy job
+            local ok_req, response = pcall(function()
+                return http_request_impl({ Url = HTTP_URL, Method = "GET" })
+            end)
+
+            if not ok_req then
+                warn("❌ HTTP request lỗi:", response)
+                task.wait(0.2)  -- tránh spam khi mạng rớt
+            else
+                local body = response and response.Body
+                if type(body) ~= "string" or #body == 0 then
+                    -- response không hợp lệ
+                    task.wait(0.2)
+                else
+                    local ok_json, data = pcall(function()
+                        return HttpService:JSONDecode(body)
+                    end)
+                    if not ok_json or type(data) ~= "table" then
+                        warn("❌ JSON decode lỗi.")
+                        task.wait(0.1)
+                    else
+                        local jobId = tostring(data.jobId or "")
+                        local placeId = tonumber(data.placeId) or game.PlaceId
+
+                        if jobId == "" or jobId == "null" or jobId == "nil" then
+                            -- Queue rỗng → retry nhanh, tránh tight-loop
+                            task.wait(0.05)
+                        else
+                            if recentSet[jobId] then
+                                -- Bỏ qua job trùng
+                                -- print("🔁 Skip duplicate:", jobId)
+                                task.wait(0.05)
+                            else
+                                pushRecent(jobId)
+                                print(("➡ Teleport thử JobId: %s  (place=%s)"):format(jobId, tostring(placeId)))
+                                local ok_tp, err = pcall(function()
+                                    TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+                                end)
+                                if not ok_tp then
+                                    warn("⚠️ Teleport failed:", err)
+                                else
+                                    print("✅ Teleport call đã gửi (game sẽ tự xử lý).")
+                                end
+                                -- YÊU CẦU: luôn đợi 3s sau mỗi lần thử (kể cả fail/ok)
+                                task.wait(DELAY_AFTER_TRY)
+                            end
+                        end
+                    end
+                end
+            end
+            -- Không dùng goto; vòng lặp tiếp tục tự nhiên
+        end
+    end)
+end)
