@@ -1,7 +1,5 @@
--- CT_WhiteScanner_V2.lua
--- 1) Fix lag  2) White screen + timer  3) Ẩn lỗi teleport
--- 4) Target list  5) Gửi webhook (giữ nguyên logic bạn đưa)
-
+-- CT_WhiteScanner_V2.lua (Grape Hub) - FULL (original mechanisms + improved webhook logic)
+task.wait(1)
 repeat task.wait() until game:IsLoaded()
 
 --// Services
@@ -12,14 +10,13 @@ local UIS         = game:GetService('UserInputService')
 local HttpService = game:GetService('HttpService')
 local LP          = Players.LocalPlayer
 
---==================================================
--- 1) TỐI ƯU ĐỒ HỌA / FIX LAG
---==================================================
+-- ==================================================
+-- 1) TỐI ƯU ĐỒ HỌA / FIX LAG  (giữ nguyên cơ chế cũ)
+-- ==================================================
 pcall(function()
     local rs = settings():GetService('RenderSettings')
     if rs then rs.QualityLevel = Enum.QualityLevel.Level01 end
 end)
-
 pcall(function()
     Lighting.GlobalShadows = false
     Lighting.EnvironmentDiffuseScale = 0
@@ -90,9 +87,9 @@ end
 
 print('✅ Đã tối ưu đồ họa xong!')
 
---==================================================
--- 2) WHITE SCREEN + TIMER (toggle bằng phím P)
---==================================================
+-- ==================================================
+-- 2) WHITE SCREEN + TIMER (toggle bằng P) - giữ nguyên
+-- ==================================================
 local WHITE_ON_START = true
 local TOGGLE_KEY = Enum.KeyCode.P
 local WhiteGui, WhiteFrame, TimerLabel, WhiteOn = nil, nil, nil, false
@@ -161,9 +158,9 @@ task.spawn(function()
     end)
 end)
 
---==================================================
+-- ==================================================
 -- 3) ẨN BẢNG LỖI TELEPORT
---==================================================
+-- ==================================================
 task.spawn(function()
     while task.wait(3) do
         pcall(function()
@@ -225,10 +222,9 @@ task.spawn(function()
         end)
     end
 end)
-
---==================================================
+-- ==================================================
 -- 4) TARGET LIST
---==================================================
+-- ==================================================
 local targets = {
     'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
     'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
@@ -240,135 +236,293 @@ local targets = {
     'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
     'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
     'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
+    'Los Matteos','Bisonte Guppitere','La Vacca Saturno Saturnita','Los Spiderinis','Los Tralaleritos',
+    'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
+    'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
 
---==================================================
--- 5) GỬI WEBHOOK (giữ NGUYÊN logic bạn đưa)
---==================================================
-local urls = {
-    'https://discordapp.com/api/webhooks/1422467805558865942/lYqd7SPFk5nftbg_L9hrmJ4cAHgnXe7jJbw9H0ti0EQAaiMKh2eGWtpCfCTBZc8pKbzO',
-    'https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy'
-}
--- alias cho một số executor (không đụng vào payload/logic của bạn)
-local http_request = http_request or request or (syn and syn.request)
+-- ==================================================
+-- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
+-- ==================================================
+local function parseGeneration(gen)
+    if not gen or gen == "" then return 0 end
+    gen = tostring(gen):gsub(",", ""):gsub("%s+", ""):upper()
+    local num = tonumber(gen:match("([%d%.]+)")) or 0
 
+    if gen:find("B") then
+        return num * 1000              -- B → tỉ = 1000M
+    elseif gen:find("M") then
+        return num                      -- M → M
+    elseif gen:find("K") then
+        return num / 1000               -- K → 0.001M
+    elseif gen:find("%$") then          -- dạng $ số
+        if     num >= 1e9 then return (num / 1e9) * 1000  -- $ ≥ 1B → 1000M
+        elseif num >= 1e6 then return  num / 1e6          -- $ ≥ 1M → M
+        elseif num >= 1e3 then return  num / 1e3 / 1000   -- $ ≥ 1K → 0.001M
+        else return num / 1e6 end
+    else
+        return num
+    end
+end
+
+-- ==================================================
+-- ⚙️ KIỂM TRA TARGET (không phân biệt hoa/thường)
+-- ==================================================
+local function isTarget(name)
+    local n = string.lower(name or "")
+    for _, t in ipairs(targets) do
+        if n:find(string.lower(t), 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- ==================================================
+-- ⚙️ SPECIAL LIST
+-- ==================================================
+local specialList = {
+    'Headless Horseman','Meowl','Dragon Cannelloni',
+    'Garama and Madundung','Spooky and Pumpky','Burguro And Fryuro','Chipso and Queso'
+}
+local function isSpecial(name)
+    local n = string.lower(name or "")
+    for _, s in ipairs(specialList) do
+        if n:find(string.lower(s), 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- ==================================================
+-- ⚙️ WEBHOOK LINKS
+-- ==================================================
+local webhook_low     = "https://discord.com/api/webhooks/1426862131856412692/J-zZnc1SmoilRJLLU7gACiwH2No_kUfywubRLkAU2XfsLdFAjgmolpTTCk6RbtSE8VJg"
+local webhook_high    = "https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy"
+local webhook_index   = "https://discord.com/api/webhooks/1437032441226203277/qvgc98yhyfH1SjZuE086LbabJV7He3ZO84Ve6US143l9OHxbwRfAAPqN97SLSZokMSPY"
+local webhook_special = "https://discord.com/api/webhooks/1437032661188218932/CWZrxOaTlBJUSmkcPkFUHw_deJ9XaDjWsV8FGd8KN8NFZni7-GnCA2Yeap6fCAbdx1nE"
+
+-- ==================================================
+-- ⚙️ HTTP request (tương thích nhiều executor) + QUEUE
+-- ==================================================
+local http_request_impl = nil
+if typeof(syn) == "table" and typeof(syn.request) == "function" then
+    http_request_impl = syn.request
+elseif typeof(http_request) == "function" then
+    http_request_impl = http_request
+elseif typeof(request) == "function" then
+    http_request_impl = request
+elseif typeof(http) == "table" and typeof(http.request) == "function" then
+    http_request_impl = http.request
+end
+
+local sendQueue, sending = {}, false
+local function processQueue()
+    if sending then return end
+    sending = true
+    while #sendQueue > 0 do
+        local item = table.remove(sendQueue, 1)
+        if not http_request_impl then
+            warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
+            break
+        end
+        local ok, res = pcall(function()
+            return http_request_impl({
+                Url = item.url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(item.payload),
+            })
+        end)
+        if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
+            print("📤 Webhook OK →", item.url)
+        else
+            warn("⚠️ Webhook lỗi:", res and res.StatusCode, res and res.Body)
+            table.insert(sendQueue, item)  -- retry
+            task.wait(2)
+        end
+        task.wait(0.5) -- anti rate limit
+    end
+    sending = false
+end
+
+local function safeSend(url, payload)
+    table.insert(sendQueue, {url=url, payload=payload})
+    task.spawn(processQueue)
+end
+
+-- ==================================================
+-- ⚙️ EMBED (full info cho LOW/HIGH/SPECIAL)
+--  - Dùng os.date() để tránh lỗi DateTime:FormatLocalTime
+-- ==================================================
+-- ==================================================
+-- ⚙️ EMBED (FULL TYPE – dùng cho low/high/special)
+-- ==================================================
+local function makePayload(list, color, placeId, jobId)
+    local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
+
+    -- Bảng căn hàng
+    local lines = {}
+    table.insert(lines, ("👥 Players: %s"):format(players))
+    table.insert(lines, "🏷️ Name              💰 Money/s")
+    local COLUMN_POS = 22
+    for _, t in ipairs(list) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "?"
+        if utf8.len(name) > COLUMN_POS - 2 then
+            name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
+        end
+        local pad = math.max(0, COLUMN_POS - utf8.len(name))
+        table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
+    end
+    local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
+
+    local joinLink = ("🌐 [**JOIN SERVER HERE**](https://chillihub1.github.io/chillihub-joiner/?placeId=%s&gameInstanceId=%s)")
+        :format(placeId, jobId)
+    local joinScript = string.format(
+        "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(%s, '%s', game.Players.LocalPlayer)\n```",
+        placeId, jobId
+    )
+
+    local footerTime = ("🧩 Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+
+    return {
+        embeds = {{
+            author = {name = "Brainrot Notify | Grape Hub"},
+            color  = color or 0x000000,
+            description = tableBlock ..
+                "\n🆔 **Job ID (PC):** `" .. jobId .. "`\n" ..
+                joinLink .. "\n\n📜 **Join Script:**\n" .. joinScript,
+            footer = {text = footerTime},
+        }}
+    }
+end
+-- ==================================================
+-- ⚙️ EMBED INDEX (GIỐNG KIỂU TRÊN NHƯNG KHÔNG JOIN/JOB)
+-- ==================================================
+local function makeIndexPayload(list)
+    local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
+    local lines = {}
+    table.insert(lines, ("👥 Players: %s"):format(players))
+    table.insert(lines, "🏷️ Name              💰 Money/s")
+
+    local COLUMN_POS = 22
+    for _, t in ipairs(list) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "?"
+        if utf8.len(name) > COLUMN_POS - 2 then
+            name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
+        end
+        local pad = math.max(0, COLUMN_POS - utf8.len(name))
+        table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
+    end
+    local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
+    local footerTime = ("🧩 Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+
+    return {
+        embeds = {{
+            author = {name = "Brainrot Notify | Grape Hub"},
+            color  = 0x000000,
+            description = tableBlock,
+            footer = {text = footerTime},
+        }}
+    }
+end
+-- ==================================================
+-- ⚙️ GỬI WEBHOOK CHÍNH (logic cuối)
+--  - LOW: 1–9M → full (job/join/script)
+--  - HIGH: 10M+ → full (job/join/script)
+--      * Nếu tên trùng SPECIAL → delay 10s
+--  - INDEX: 50M+ → chỉ tên + tiền
+--  - SPECIAL: tên thuộc specialList → gửi đầu tiên (full)
+-- ==================================================
 local lastJobIdSent = nil
 local function sendWebhook(foundTargets)
-    if not foundTargets or #foundTargets == 0 then
-        return
-    end
-
-    local placeId = game.PlaceId
-    local jobId = game.JobId
-
-    if jobId == lastJobIdSent then
-        return
-    end
+    if not foundTargets or #foundTargets == 0 then return end
+    local placeId, jobId = game.PlaceId, game.JobId
+    if jobId == lastJobIdSent then return end
     lastJobIdSent = jobId
 
-    local joinScript = "game:GetService('TeleportService'):TeleportToPlaceInstance("
-        .. placeId
-        .. ", '"
-        .. jobId
-        .. "', game.Players.LocalPlayer)"
-    local joinLink = 'https://chillihub1.github.io/chillihub-joiner/?placeId='
-        .. placeId
-        .. '&gameInstanceId='
-        .. jobId
+    local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
 
-    -- 🎯 Tạo danh sách target với generation
-    local targetList = ''
-    for i, target in ipairs(foundTargets) do
-        local targetName = target.name or 'Unknown'
-        local generation = target.generation or 'N/A'
-        targetList = targetList
-            .. '✅ '
-            .. targetName
-            .. ' [ '
-            .. generation
-            .. ']'
-        if i < #foundTargets then
-            targetList = targetList .. '\n'
+    for _, t in ipairs(foundTargets) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "N/A"
+        if not isTarget(name) then continue end
+
+        local val = parseGeneration(gen)
+        if val <= 0 then continue end
+
+        if isSpecial(name) then
+            table.insert(groupSpecial, {name = name, generation = gen})
+        end
+        if val >= 50 then
+            table.insert(groupIndex,  {name = name, generation = gen})
+        end
+        if val >= 10 then
+            table.insert(groupHigh,   {name = name, generation = gen})
+        elseif val >= 1 then
+            table.insert(groupLow,    {name = name, generation = gen})
         end
     end
 
-    local payload = {
-        ['embeds'] = {
-            {
-                ['title'] = '🎯 Target Detected!',
-                ['description'] = targetList,
-                ['color'] = 0x00FF00,
-                ['fields'] = {
-                    {
-                        ['name'] = '👥 Players',
-                        ['value'] = tostring(#Players:GetPlayers())
-                            .. ' / '
-                            .. tostring(Players.MaxPlayers),
-                        ['inline'] = true,
-                    },
-                    {
-                        ['name'] = '🆔 JobId',
-                        ['value'] = '`' .. jobId .. '`',
-                        ['inline'] = false,
-                    },
-                    {
-                        ['name'] = '🌐 Join Link',
-                        ['value'] = '[Join Server](' .. joinLink .. ')',
-                        ['inline'] = false,
-                    },
-                    {
-                        ['name'] = '📜 Join Script',
-                        ['value'] = '```lua\n' .. joinScript .. '\n```',
-                        ['inline'] = false,
-                    },
-                },
-                ['footer'] = {
-                    ['text'] = 'Spyder Scanner | User: '
-                        .. Players.LocalPlayer.Name,
-                },
-                ['timestamp'] = DateTime.now():ToIsoDate(),
-            },
-        },
-    }
-
-    print('📤 [WEBHOOK] Đang gửi webhook...')
-
-for _, url in ipairs(urls) do
-    local success, result = pcall(function()
-        local response = http_request({
-            Url = url,
-            Method = 'POST',
-            Headers = { ['Content-Type'] = 'application/json' },
-            Body = HttpService:JSONEncode(payload),
-        })
-        return response
-    end)
-
-    if success then
-        print('✅ [WEBHOOK] Gửi thành công →', url)
-    else
-        print('❌ [WEBHOOK] Lỗi:', url, tostring(result))
+    -- Không có gì hợp lệ
+    if #groupLow == 0 and #groupHigh == 0 and #groupIndex == 0 and #groupSpecial == 0 then
+        print("ℹ️ Không có target hợp lệ để gửi webhook.")
+        return
     end
-end
 
-    -- Log target name với generation
-    local logTargets = ''
-    for i, target in ipairs(foundTargets) do
-        logTargets = logTargets
-            .. target.name
-            .. ' ['
-            .. target.generation
-            .. ']'
-        if i < #foundTargets then
-            logTargets = logTargets .. ', '
+    print("📤 Bắt đầu gửi webhook ...")
+
+    -- SPECIAL gửi ĐẦU TIÊN (full)
+    if #groupSpecial > 0 then
+        safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
+        print(("🚨 Special: %d item(s)"):format(#groupSpecial))
+    end
+
+    -- INDEX (50M+) gửi ngay (chỉ tên + tiền)
+    if #groupIndex > 0 then
+        safeSend(webhook_index, makeIndexPayload(groupIndex))
+        print(("📘 Index(50M+): %d item(s)"):format(#groupIndex))
+    end
+
+    -- LOW (1–9M) gửi ngay (full)
+    if #groupLow > 0 then
+        safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
+        print(("📩 Low(1–9M): %d item(s)"):format(#groupLow))
+    end
+
+    -- HIGH (10M+) tách special trùng → delay 10s; còn lại gửi ngay
+    if #groupHigh > 0 then
+        local normalHigh, delayedHigh = {}, {}
+        local specialSet = {}
+        for _, s in ipairs(groupSpecial) do
+            specialSet[string.lower(s.name or "")] = true
+        end
+        for _, h in ipairs(groupHigh) do
+            if specialSet[string.lower(h.name or "")] then
+                table.insert(delayedHigh, h)
+            else
+                table.insert(normalHigh,  h)
+            end
+        end
+
+        if #normalHigh > 0 then
+            safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
+            print(("🔥 High(10M+) ngay: %d item(s)"):format(#normalHigh))
+        end
+        if #delayedHigh > 0 then
+            task.delay(10, function()
+                safeSend(webhook_high, makePayload(delayedHigh, 0x1A1AFF, placeId, jobId))
+                print(("⏱️ High(10M+) trùng special gửi sau 10s: %d item(s)"):format(#delayedHigh))
+            end)
         end
     end
-    print('✅ Phát hiện target:', logTargets)
 end
-
---==================================================
--- CHECK TARGETS + LOOP
---==================================================
+-- ==================================================
+-- CHECK TARGETS + LOOP (giữ cơ chế quét cũ, quét mỗi 3s)
+-- ==================================================
 local function checkTargets()
     local foundTargets = {}
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -428,15 +582,29 @@ end
 
 print('🎯 CT_WhiteScanner_V2 đang chạy... (quét mỗi 3s)')
 
--- ✅ CHẠY NGAY LẦN ĐẦU KHI EXECUTE
-local initialTargets = checkTargets()
-if #initialTargets > 0 then
-    sendWebhook(initialTargets)
-else
-    print('⌛ Chưa phát hiện target nào khi khởi động.')
-end
+-- STARTUP: đợi map load billboard, retry 5s nếu chưa có
+task.spawn(function()
+    print("🕓 Đợi map load Billboard... (3s)")
+    task.wait(3)
+    local initialTargets = checkTargets()
+    if #initialTargets > 0 then
+        print("✅ Đã tìm thấy "..#initialTargets.." target, gửi ngay!")
+        sendWebhook(initialTargets)
+    else
+        print("⌛ Chưa phát hiện target nào, retry sau 5s...")
+        task.delay(5, function()
+            local retry = checkTargets()
+            if #retry > 0 then
+                print("🔁 Gửi lại webhook sau 5s ("..#retry.." targets)")
+                sendWebhook(retry)
+            else
+                print("⌛ Retry 5s: vẫn chưa có target.")
+            end
+        end)
+    end
+end)
 
--- 🔁 LOOP QUÉT MỖI 3 GIÂY
+-- Loop quét đều đặn
 task.spawn(function()
     while task.wait(3) do
         local ok2, err = pcall(function()
@@ -446,18 +614,16 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
------------------------------------------------------------
--- 🚀 CT AUTO JOIN (an toàn, không phụ thuộc hàm khác)
--- - Chạy với Python /next của bạn (KHÔNG lọc private)
--- - Tránh join lặp jobId, Delay 3s sau mỗi lần thử
------------------------------------------------------------
-task.delay(2, function()
+
+-- ==================================================
+-- 🚀 CT AUTO JOIN (giữ nguyên, optional)
+-- ==================================================
+task.delay(5, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ⚙️ Tìm hàm HTTP khả dụng
     local http_request_impl = nil
     if typeof(syn) == "table" and typeof(syn.request) == "function" then
         http_request_impl = syn.request
@@ -475,10 +641,7 @@ task.delay(2, function()
         return
     end
 
-    -- 🔗 Python endpoint của bạn
-    local HTTP_URL = "http://127.0.0.1:8080/next" -- đổi IP nếu Python chạy máy khác
-
-    -- 🧠 Tránh job trùng
+    local HTTP_URL = "http://127.0.0.1:8080/next"
     local RECENT_MAX = 300
     local recentQueue, recentSet = {}, {}
     local function pushRecent(jid)
@@ -492,24 +655,21 @@ task.delay(2, function()
         end
     end
 
-    local DELAY_AFTER_TRY = 3 -- yêu cầu của bạn
-
+    local DELAY_AFTER_TRY = 5
     print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay sau mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
     task.spawn(function()
         while true do
-            -- 1) Gọi Python lấy job
             local ok_req, response = pcall(function()
                 return http_request_impl({ Url = HTTP_URL, Method = "GET" })
             end)
 
             if not ok_req then
                 warn("❌ HTTP request lỗi:", response)
-                task.wait(0.2)  -- tránh spam khi mạng rớt
+                task.wait(0.2)
             else
                 local body = response and response.Body
                 if type(body) ~= "string" or #body == 0 then
-                    -- response không hợp lệ
                     task.wait(0.2)
                 else
                     local ok_json, data = pcall(function()
@@ -523,12 +683,9 @@ task.delay(2, function()
                         local placeId = tonumber(data.placeId) or game.PlaceId
 
                         if jobId == "" or jobId == "null" or jobId == "nil" then
-                            -- Queue rỗng → retry nhanh, tránh tight-loop
                             task.wait(0.05)
                         else
                             if recentSet[jobId] then
-                                -- Bỏ qua job trùng
-                                -- print("🔁 Skip duplicate:", jobId)
                                 task.wait(0.05)
                             else
                                 pushRecent(jobId)
@@ -541,14 +698,12 @@ task.delay(2, function()
                                 else
                                     print("✅ Teleport call đã gửi (game sẽ tự xử lý).")
                                 end
-                                -- YÊU CẦU: luôn đợi 3s sau mỗi lần thử (kể cả fail/ok)
                                 task.wait(DELAY_AFTER_TRY)
                             end
                         end
                     end
                 end
             end
-            -- Không dùng goto; vòng lặp tiếp tục tự nhiên
         end
     end)
 end)
