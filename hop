@@ -451,7 +451,7 @@ end)
 -- - Chạy với Python /next của bạn (KHÔNG lọc private)
 -- - Tránh join lặp jobId, Delay 3s sau mỗi lần thử
 -----------------------------------------------------------
-task.delay(3, function()
+task.delay(2, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
