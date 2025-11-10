@@ -614,7 +614,7 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
--- 🚀 CT AUTO JOIN (Fix lỗi isTeleporting + tự dò port 8085→8040)
+-- 🚀 CT AUTO JOIN (shared cooldown toàn máy + dò port 8085→8040)
 -- ==================================================
 task.delay(3, function()
     local Players = game:GetService("Players")
@@ -622,7 +622,7 @@ task.delay(3, function()
     local TeleportService = game:GetService("TeleportService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- ✅ HTTP chọn tương thích
+    -- Xác định hàm HTTP tương thích
     local http_request_impl = nil
     if typeof(syn) == "table" and typeof(syn.request) == "function" then
         http_request_impl = syn.request
@@ -644,7 +644,7 @@ task.delay(3, function()
         for port = 8085, 8040, -1 do
             local url = ("http://127.0.0.1:%d/next"):format(port)
             local ok, res = pcall(function()
-                return http_request_impl({ Url = url, Method = "GET", Timeout = 1 })
+                return http_request_impl({Url = url, Method = "GET", Timeout = 1})
             end)
             if ok and res and res.StatusCode == 200 and res.Body and #res.Body > 0 then
                 print(("✅ Phát hiện server hoạt động tại port %d"):format(port))
@@ -670,14 +670,32 @@ task.delay(3, function()
         end
     end
 
-    -- ⚙️ Giới hạn teleport
+    -- ⚙️ Shared cooldown toàn máy
+    local sharedCooldownFile = "teleport_lock.txt"
+    local TELEPORT_COOLDOWN = 10 -- giây chờ toàn máy
+
+    local function isGlobalTeleporting()
+        local ok, data = pcall(readfile, sharedCooldownFile)
+        if ok and data then
+            local ts = tonumber(data)
+            if ts and (os.time() - ts) < TELEPORT_COOLDOWN then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function setGlobalTeleportLock()
+        pcall(writefile, sharedCooldownFile, tostring(os.time()))
+    end
+
+    -- ⚙️ Cooldown cục bộ (1 tab)
     local isTeleportingNow = false
-    local TELEPORT_COOLDOWN = 8 -- giây chờ giữa 2 lần teleport
-    local DELAY_AFTER_TRY = 1   -- delay vòng lặp chính
+    local DELAY_AFTER_TRY = 1
 
-    print(("[CT AutoJoin] Bắt đầu (URL=%s) | Cooldown = %ds"):format(HTTP_URL, TELEPORT_COOLDOWN))
+    print(("[CT AutoJoin] Bắt đầu (URL=%s) | Cooldown toàn máy = %ds"):format(HTTP_URL, TELEPORT_COOLDOWN))
 
-    -- 🔄 Lắng nghe lỗi teleport để reset flag
+    -- Reset flag nếu teleport lỗi
     TeleportService.TeleportInitFailed:Connect(function(_, result, msg)
         warn("⚠️ TeleportInitFailed:", result, msg)
         isTeleportingNow = false
@@ -685,9 +703,9 @@ task.delay(3, function()
 
     task.spawn(function()
         while true do
-            if not isTeleportingNow then
+            if not isTeleportingNow and not isGlobalTeleporting() then
                 local ok_req, response = pcall(function()
-                    return http_request_impl({ Url = HTTP_URL, Method = "GET" })
+                    return http_request_impl({Url = HTTP_URL, Method = "GET"})
                 end)
 
                 if ok_req and response and response.Body and #response.Body > 0 then
@@ -703,7 +721,9 @@ task.delay(3, function()
                             if not recentSet[jobId] then
                                 pushRecent(jobId)
                                 isTeleportingNow = true
-                                print(("➡ Teleport thử JobId: %s (place=%s)"):format(jobId, placeId))
+                                setGlobalTeleportLock() -- ghi lock toàn máy
+                                print(("➡ Teleport JobId: %s (place=%s)"):format(jobId, placeId))
+
                                 local ok_tp, err = pcall(function()
                                     TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
                                 end)
@@ -711,7 +731,7 @@ task.delay(3, function()
                                     warn("⚠️ Teleport lỗi:", err)
                                     isTeleportingNow = false
                                 else
-                                    print("✅ Gửi teleport, chờ cooldown...")
+                                    print(("✅ Teleport gửi thành công | Cooldown %ds..."):format(TELEPORT_COOLDOWN))
                                     task.delay(TELEPORT_COOLDOWN, function()
                                         isTeleportingNow = false
                                     end)
