@@ -385,7 +385,7 @@ local function makePayload(list, color, placeId, jobId)
         placeId, jobId
     )
 
-    local footerTime = ("🧩 Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+    local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
     return {
         embeds = {{
@@ -418,12 +418,12 @@ local function makeIndexPayload(list)
         table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
     end
     local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
-    local footerTime = ("🧩 Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+    local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
     return {
         embeds = {{
             author = {name = "Brainrot Notify | Grape Hub"},
-            color  = 0x000000,
+            color  = #000000,
             description = tableBlock,
             footer = {text = footerTime},
         }}
