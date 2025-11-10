@@ -616,7 +616,7 @@ task.spawn(function()
 end)
 -- 🚀 CT AUTO JOIN (có tự động dò port 8080 → 8050)
 -- ==================================================
-task.delay(4, function()
+task.delay(3, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
@@ -672,7 +672,7 @@ end
         end
     end
 
-    local DELAY_AFTER_TRY = 4
+    local DELAY_AFTER_TRY = 3
     print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
     task.spawn(function()
