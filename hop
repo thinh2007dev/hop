@@ -618,7 +618,7 @@ end)
 -- ==================================================
 -- 🚀 CT AUTO JOIN (giữ nguyên, optional)
 -- ==================================================
-task.delay(5, function()
+task.delay(3, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
@@ -655,7 +655,7 @@ task.delay(5, function()
         end
     end
 
-    local DELAY_AFTER_TRY = 5
+    local DELAY_AFTER_TRY = 3
     print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay sau mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
     task.spawn(function()
