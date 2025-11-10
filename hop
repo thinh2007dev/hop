@@ -614,7 +614,7 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
--- 🚀 CT AUTO JOIN (Ultimate Edition – Fix IsTeleporting + Shared Cooldown + Port Scan)
+-- 🚀 CT AUTO JOIN (Ultimate Edition – 4s Delay)
 -- ==================================================
 task.delay(3, function()
     local Players = game:GetService("Players")
@@ -673,7 +673,7 @@ task.delay(3, function()
 
     -- 🧩 Shared cooldown toàn máy (dùng file)
     local sharedCooldownFile = "teleport_lock.txt"
-    local TELEPORT_COOLDOWN = 3.5 -- cooldown toàn máy (giây)
+    local TELEPORT_COOLDOWN = 4.0  -- ⏱️ Giảm xuống 4 giây
 
     local function isGlobalTeleporting()
         local ok, data = pcall(readfile, sharedCooldownFile)
@@ -694,7 +694,7 @@ task.delay(3, function()
     local isTeleportingNow = false
     local retryCount = 0
     local MAX_RETRY = 3
-    local DELAY_AFTER_TRY = 0.8 -- delay mỗi vòng nhỏ
+    local DELAY_AFTER_TRY = 0.8
 
     print(("[CT AutoJoin] 🔗 URL: %s | Cooldown toàn máy: %.1fs"):format(HTTP_URL, TELEPORT_COOLDOWN))
 
