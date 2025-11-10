@@ -616,6 +616,9 @@ task.spawn(function()
 end)
 -- 🚀 CT AUTO JOIN (có tự động dò port 8080 → 8050)
 -- ==================================================
+repeat task.wait() until game:IsLoaded()
+task.wait(2)
+
 task.delay(3, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
@@ -640,27 +643,29 @@ task.delay(3, function()
         return
     end
 
-   -- ✅ Tự động dò port mở từ 8085 → 8040
-local function detectActivePort()
-    for port = 8085, 8040, -1 do
-        local url = ("http://127.0.0.1:%d/next"):format(port)
-        local ok, res = pcall(function()
-            return http_request_impl({Url = url, Method = "GET", Timeout = 1})
-        end)
-        if ok and res and res.StatusCode == 200 then
-            if res.Body and #res.Body > 0 and not res.Body:find("error") then
-                print(("✅ Phát hiện server hoạt động tại port %d"):format(port))
-                return url
+    -- ✅ Tự động dò port mở từ 8085 → 8040
+    local function detectActivePort()
+        for port = 8085, 8040, -1 do
+            local url = ("http://127.0.0.1:%d/next"):format(port)
+            local ok, res = pcall(function()
+                return http_request_impl({Url = url, Method = "GET", Timeout = 1})
+            end)
+            if ok and res and res.StatusCode == 200 then
+                if res.Body and #res.Body > 0 and not res.Body:find("error") then
+                    print(("✅ Phát hiện server hoạt động tại port %d"):format(port))
+                    return url
+                end
             end
+            task.wait(0.05)
         end
-        task.wait(0.05)
+        warn("⚠️ Không tìm thấy cổng khả dụng (8085–8040). Dùng mặc định 8080.")
+        return "http://127.0.0.1:8080/next"
     end
-    warn("⚠️ Không tìm thấy cổng khả dụng (8085–8040). Dùng mặc định 8080.")
-    return "http://127.0.0.1:8080/next"
-end
+
     local HTTP_URL = detectActivePort()
     local RECENT_MAX = 300
     local recentQueue, recentSet = {}, {}
+
     local function pushRecent(jid)
         if not jid or jid == "" then return end
         if recentSet[jid] then return end
@@ -672,9 +677,11 @@ end
         end
     end
 
+    -- ⚙️ Delay mỗi lần thử
     local DELAY_AFTER_TRY = 3
     print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
+    -- 🔁 Vòng lặp chính
     task.spawn(function()
         while true do
             local ok_req, response = pcall(function()
@@ -722,4 +729,4 @@ end
             end
         end
     end)
-
+end)
