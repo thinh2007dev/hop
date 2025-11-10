@@ -614,9 +614,7 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
-
--- ==================================================
--- 🚀 CT AUTO JOIN (giữ nguyên, optional)
+-- 🚀 CT AUTO JOIN (có tự động dò port 8080 → 8050)
 -- ==================================================
 task.delay(3, function()
     local Players = game:GetService("Players")
@@ -624,6 +622,7 @@ task.delay(3, function()
     local TeleportService = game:GetService("TeleportService")
     local LocalPlayer = Players.LocalPlayer
 
+    -- Xác định hàm HTTP tương thích
     local http_request_impl = nil
     if typeof(syn) == "table" and typeof(syn.request) == "function" then
         http_request_impl = syn.request
@@ -641,7 +640,25 @@ task.delay(3, function()
         return
     end
 
-    local HTTP_URL = "http://127.0.0.1:8080/next"
+   -- ✅ Tự động dò port mở từ 8085 → 8040
+local function detectActivePort()
+    for port = 8085, 8040, -1 do
+        local url = ("http://127.0.0.1:%d/next"):format(port)
+        local ok, res = pcall(function()
+            return http_request_impl({Url = url, Method = "GET", Timeout = 1})
+        end)
+        if ok and res and res.StatusCode == 200 then
+            if res.Body and #res.Body > 0 and not res.Body:find("error") then
+                print(("✅ Phát hiện server hoạt động tại port %d"):format(port))
+                return url
+            end
+        end
+        task.wait(0.05)
+    end
+    warn("⚠️ Không tìm thấy cổng khả dụng (8085–8040). Dùng mặc định 8080.")
+    return "http://127.0.0.1:8080/next"
+end
+    local HTTP_URL = detectActivePort()
     local RECENT_MAX = 300
     local recentQueue, recentSet = {}, {}
     local function pushRecent(jid)
@@ -656,7 +673,7 @@ task.delay(3, function()
     end
 
     local DELAY_AFTER_TRY = 3
-    print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay sau mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
+    print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
     task.spawn(function()
         while true do
@@ -676,18 +693,13 @@ task.delay(3, function()
                         return HttpService:JSONDecode(body)
                     end)
                     if not ok_json or type(data) ~= "table" then
-                        warn("❌ JSON decode lỗi.")
                         task.wait(0.1)
                     else
                         local jobId = tostring(data.jobId or "")
                         local placeId = tonumber(data.placeId) or game.PlaceId
 
-                        if jobId == "" or jobId == "null" or jobId == "nil" then
-                            task.wait(0.05)
-                        else
-                            if recentSet[jobId] then
-                                task.wait(0.05)
-                            else
+                        if jobId ~= "" and jobId ~= "null" and jobId ~= "nil" then
+                            if not recentSet[jobId] then
                                 pushRecent(jobId)
                                 print(("➡ Teleport thử JobId: %s  (place=%s)"):format(jobId, tostring(placeId)))
                                 local ok_tp, err = pcall(function()
@@ -699,7 +711,11 @@ task.delay(3, function()
                                     print("✅ Teleport call đã gửi (game sẽ tự xử lý).")
                                 end
                                 task.wait(DELAY_AFTER_TRY)
+                            else
+                                task.wait(0.05)
                             end
+                        else
+                            task.wait(0.05)
                         end
                     end
                 end
