@@ -614,7 +614,7 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
--- 🚀 CT AUTO JOIN (Ultimate Edition – 4s Delay)
+-- 🚀 CT AUTO JOIN (có tự động dò port 8080 → 8050)
 -- ==================================================
 task.delay(3, function()
     local Players = game:GetService("Players")
@@ -622,7 +622,7 @@ task.delay(3, function()
     local TeleportService = game:GetService("TeleportService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- 🎯 Xác định hàm HTTP tương thích
+    -- Xác định hàm HTTP tương thích
     local http_request_impl = nil
     if typeof(syn) == "table" and typeof(syn.request) == "function" then
         http_request_impl = syn.request
@@ -636,30 +636,31 @@ task.delay(3, function()
 
     if not http_request_impl then
         warn("❌ Không tìm thấy HTTP request function (syn.request / http_request / request / http.request).")
+        warn("👉 Hãy bật HTTP trong executor hoặc đổi executor.")
         return
     end
 
-    -- 🔍 Tự động dò port mở (8085 → 8040)
-    local function detectActivePort()
-        for port = 8085, 8040, -1 do
-            local url = ("http://127.0.0.1:%d/next"):format(port)
-            local ok, res = pcall(function()
-                return http_request_impl({Url = url, Method = "GET", Timeout = 1})
-            end)
-            if ok and res and res.StatusCode == 200 and res.Body and #res.Body > 0 then
-                print(("✅ [AutoJoin] Port hoạt động: %d"):format(port))
+   -- ✅ Tự động dò port mở từ 8085 → 8040
+local function detectActivePort()
+    for port = 8085, 8040, -1 do
+        local url = ("http://127.0.0.1:%d/next"):format(port)
+        local ok, res = pcall(function()
+            return http_request_impl({Url = url, Method = "GET", Timeout = 1})
+        end)
+        if ok and res and res.StatusCode == 200 then
+            if res.Body and #res.Body > 0 and not res.Body:find("error") then
+                print(("✅ Phát hiện server hoạt động tại port %d"):format(port))
                 return url
             end
-            task.wait(0.05)
         end
-        warn("⚠️ Không tìm thấy port khả dụng (8085–8040). Dùng mặc định 8080.")
-        return "http://127.0.0.1:8080/next"
+        task.wait(0.05)
     end
-
+    warn("⚠️ Không tìm thấy cổng khả dụng (8085–8040). Dùng mặc định 8080.")
+    return "http://127.0.0.1:8080/next"
+end
     local HTTP_URL = detectActivePort()
     local RECENT_MAX = 300
     local recentQueue, recentSet = {}, {}
-
     local function pushRecent(jid)
         if not jid or jid == "" then return end
         if recentSet[jid] then return end
@@ -671,114 +672,54 @@ task.delay(3, function()
         end
     end
 
-    -- 🧩 Shared cooldown toàn máy (dùng file)
-    local sharedCooldownFile = "teleport_lock.txt"
-    local TELEPORT_COOLDOWN = 4.0  -- ⏱️ Giảm xuống 4 giây
+    local DELAY_AFTER_TRY = 3
+    print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
-    local function isGlobalTeleporting()
-        local ok, data = pcall(readfile, sharedCooldownFile)
-        if ok and data then
-            local ts = tonumber(data)
-            if ts and (os.time() - ts) < TELEPORT_COOLDOWN then
-                return true
-            end
-        end
-        return false
-    end
-
-    local function setGlobalTeleportLock()
-        pcall(writefile, sharedCooldownFile, tostring(os.time()))
-    end
-
-    -- ⚙️ Các biến điều khiển
-    local isTeleportingNow = false
-    local retryCount = 0
-    local MAX_RETRY = 3
-    local DELAY_AFTER_TRY = 0.8
-
-    print(("[CT AutoJoin] 🔗 URL: %s | Cooldown toàn máy: %.1fs"):format(HTTP_URL, TELEPORT_COOLDOWN))
-
-    -- 🧩 Reset flag khi teleport lỗi
-    TeleportService.TeleportInitFailed:Connect(function(_, result, msg)
-        local res = tostring(result)
-        if res:find("IsTeleporting") then
-            print("⚠️ [CT AutoJoin] Bị IsTeleporting → reset flag ngay.")
-        elseif res:find("Unauthorized") then
-            warn("⛔ [CT AutoJoin] Server private hoặc bị khóa quyền.")
-        else
-            warn("⚠️ [CT AutoJoin] Lỗi teleport khác:", msg)
-        end
-        isTeleportingNow = false
-    end)
-
-    -- ⚙️ Hàm teleport có retry logic
-    local function tryTeleport(placeId, jobId)
-        if isTeleportingNow or isGlobalTeleporting() then
-            print("⏳ [CT AutoJoin] Đang cooldown, chờ slot teleport trống...")
-            return
-        end
-
-        isTeleportingNow = true
-        setGlobalTeleportLock()
-
-        print(("➡ [CT AutoJoin] Teleport JobId: %s  (place=%s)"):format(jobId, placeId))
-
-        local ok, err = pcall(function()
-            TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
-        end)
-
-        if not ok then
-            local e = tostring(err)
-            if e:find("IsTeleporting") then
-                print("⚠️ [CT AutoJoin] Bị IsTeleporting → đợi 2.5s rồi thử lại.")
-                isTeleportingNow = false
-                task.wait(2.5)
-                retryCount += 1
-                if retryCount <= MAX_RETRY then
-                    tryTeleport(placeId, jobId)
-                else
-                    print("⛔ [CT AutoJoin] Quá 3 lần retry, bỏ qua JobId này.")
-                end
-            elseif e:find("Unauthorized") then
-                warn("🚫 [CT AutoJoin] Không thể join server private (Unauthorized).")
-                isTeleportingNow = false
-            else
-                warn("⚠️ [CT AutoJoin] Lỗi teleport khác:", e)
-                isTeleportingNow = false
-            end
-        else
-            print(("✅ [CT AutoJoin] Teleport gửi thành công | Cooldown %.1fs..."):format(TELEPORT_COOLDOWN))
-            retryCount = 0
-        end
-
-        task.delay(TELEPORT_COOLDOWN, function() isTeleportingNow = false end)
-    end
-
-    -- ⚙️ Vòng lặp chính đọc jobId từ Python
     task.spawn(function()
         while true do
             local ok_req, response = pcall(function()
-                return http_request_impl({Url = HTTP_URL, Method = "GET"})
+                return http_request_impl({ Url = HTTP_URL, Method = "GET" })
             end)
 
-            if ok_req and response and response.Body and #response.Body > 0 then
-                local ok_json, data = pcall(function()
-                    return HttpService:JSONDecode(response.Body)
-                end)
+            if not ok_req then
+                warn("❌ HTTP request lỗi:", response)
+                task.wait(0.2)
+            else
+                local body = response and response.Body
+                if type(body) ~= "string" or #body == 0 then
+                    task.wait(0.2)
+                else
+                    local ok_json, data = pcall(function()
+                        return HttpService:JSONDecode(body)
+                    end)
+                    if not ok_json or type(data) ~= "table" then
+                        task.wait(0.1)
+                    else
+                        local jobId = tostring(data.jobId or "")
+                        local placeId = tonumber(data.placeId) or game.PlaceId
 
-                if ok_json and type(data) == "table" then
-                    local jobId = tostring(data.jobId or "")
-                    local placeId = tonumber(data.placeId) or game.PlaceId
-
-                    if jobId ~= "" and jobId ~= "null" and jobId ~= "nil" then
-                        if not recentSet[jobId] then
-                            pushRecent(jobId)
-                            tryTeleport(placeId, jobId)
+                        if jobId ~= "" and jobId ~= "null" and jobId ~= "nil" then
+                            if not recentSet[jobId] then
+                                pushRecent(jobId)
+                                print(("➡ Teleport thử JobId: %s  (place=%s)"):format(jobId, tostring(placeId)))
+                                local ok_tp, err = pcall(function()
+                                    TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+                                end)
+                                if not ok_tp then
+                                    warn("⚠️ Teleport failed:", err)
+                                else
+                                    print("✅ Teleport call đã gửi (game sẽ tự xử lý).")
+                                end
+                                task.wait(DELAY_AFTER_TRY)
+                            else
+                                task.wait(0.05)
+                            end
+                        else
+                            task.wait(0.05)
                         end
                     end
                 end
             end
-            task.wait(DELAY_AFTER_TRY)
         end
     end)
-end)
+
