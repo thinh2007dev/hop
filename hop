@@ -642,21 +642,21 @@ print('🎯 CT_WhiteScanner_V2 đang chạy... (quét mỗi 3s)')
 
 -- STARTUP: đợi map load billboard, retry 5s nếu chưa có
 task.spawn(function()
-    print("🕓 Đợi map load Billboard... (3s)")
-    task.wait(3)
+    print("🕓 Đợi map load Billboard... (1s)")
+    task.wait(1)
     local initialTargets = checkTargets()
     if #initialTargets > 0 then
         print("✅ Đã tìm thấy "..#initialTargets.." target, gửi ngay!")
         sendWebhook(initialTargets)
     else
-        print("⌛ Chưa phát hiện target nào, retry sau 5s...")
-        task.delay(5, function()
+        print("⌛ Chưa phát hiện target nào, retry sau 1s...")
+        task.delay(1, function()
             local retry = checkTargets()
             if #retry > 0 then
-                print("🔁 Gửi lại webhook sau 5s ("..#retry.." targets)")
+                print("🔁 Gửi lại webhook sau 1s ("..#retry.." targets)")
                 sendWebhook(retry)
             else
-                print("⌛ Retry 5s: vẫn chưa có target.")
+                print("⌛ Retry 1s: vẫn chưa có target.")
             end
         end)
     end
@@ -675,9 +675,9 @@ end)
 -- 🚀 CT AUTO JOIN (có tự động dò port 8080 → 8050)
 -- ==================================================
 repeat task.wait() until game:IsLoaded()
-task.wait(1)
+task.wait(0.5)
 
-task.delay(2, function()
+task.delay(1, function()
     local Players = game:GetService("Players")
     local HttpService = game:GetService("HttpService")
     local TeleportService = game:GetService("TeleportService")
@@ -736,7 +736,7 @@ task.delay(2, function()
     end
 
     -- ⚙️ Delay mỗi lần thử
-    local DELAY_AFTER_TRY = 2
+    local DELAY_AFTER_TRY = 1
     print(("[CT AutoJoin] Bắt đầu (URL=%s)  | Delay mỗi lần thử = %ds"):format(HTTP_URL, DELAY_AFTER_TRY))
 
     -- 🔁 Vòng lặp chính
