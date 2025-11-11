@@ -340,7 +340,7 @@ end
 -- ==================================================
 local specialList = {
     'Headless Horseman','Meowl','Dragon Cannelloni',
-    'Garama and Madundung','Spooky and Pumpky','Burguro And Fryuro','Chipso and Queso'
+    'Garama and Madundung','Spooky and Pumpky','Burguro And Fryuro'
 }
 local function isSpecial(name)
     local n = string.lower(name or "")
