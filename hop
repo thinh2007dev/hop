@@ -347,9 +347,10 @@ end
 -- ⚙️ KIỂM TRA TARGET
 -- ==================================================
 local function isTarget(name)
-	local n = string.lower(name or "")
+	if not name then return false end
+	local n = string.lower(name)
 	for _, t in ipairs(targets) do
-		if n:find(string.lower(t), 1, true) then
+		if n == string.lower(t) then
 			return true
 		end
 	end
