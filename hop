@@ -307,15 +307,15 @@ local function parseGeneration(gen)
     local num = tonumber(gen:match("([%d%.]+)")) or 0
 
     if gen:find("B") then
-        return num * 1000              -- B → tỉ = 1000M
+        return num * 1000
     elseif gen:find("M") then
-        return num                      -- M → M
+        return num
     elseif gen:find("K") then
-        return num / 1000               -- K → 0.001M
-    elseif gen:find("%$") then          -- dạng $ số
-        if     num >= 1e9 then return (num / 1e9) * 1000  -- $ ≥ 1B → 1000M
-        elseif num >= 1e6 then return  num / 1e6          -- $ ≥ 1M → M
-        elseif num >= 1e3 then return  num / 1e3 / 1000   -- $ ≥ 1K → 0.001M
+        return num / 1000
+    elseif gen:find("%$") then
+        if num >= 1e9 then return (num / 1e9) * 1000
+        elseif num >= 1e6 then return num / 1e6
+        elseif num >= 1e3 then return num / 1e3 / 1000
         else return num / 1e6 end
     else
         return num
@@ -323,7 +323,7 @@ local function parseGeneration(gen)
 end
 
 -- ==================================================
--- ⚙️ KIỂM TRA TARGET (không phân biệt hoa/thường)
+-- ⚙️ KIỂM TRA TARGET
 -- ==================================================
 local function isTarget(name)
     local n = string.lower(name or "")
@@ -361,7 +361,7 @@ local webhook_index   = "https://discord.com/api/webhooks/1437032441226203277/qv
 local webhook_special = "https://discord.com/api/webhooks/1437032661188218932/CWZrxOaTlBJUSmkcPkFUHw_deJ9XaDjWsV8FGd8KN8NFZni7-GnCA2Yeap6fCAbdx1nE"
 
 -- ==================================================
--- ⚙️ HTTP request (tương thích nhiều executor) + QUEUE
+-- ⚙️ HTTP REQUEST (tương thích executor)
 -- ==================================================
 local http_request_impl = nil
 if typeof(syn) == "table" and typeof(syn.request) == "function" then
@@ -396,10 +396,10 @@ local function processQueue()
             print("📤 Webhook OK →", item.url)
         else
             warn("⚠️ Webhook lỗi:", res and res.StatusCode, res and res.Body)
-            table.insert(sendQueue, item)  -- retry
+            table.insert(sendQueue, item)
             task.wait(2)
         end
-        task.wait(0.5) -- anti rate limit
+        task.wait(0.5)
     end
     sending = false
 end
@@ -410,16 +410,10 @@ local function safeSend(url, payload)
 end
 
 -- ==================================================
--- ⚙️ EMBED (full info cho LOW/HIGH/SPECIAL)
---  - Dùng os.date() để tránh lỗi DateTime:FormatLocalTime
--- ==================================================
--- ==================================================
--- ⚙️ EMBED (FULL TYPE – dùng cho low/high/special)
+-- ⚙️ EMBED FULL (low/high/special)
 -- ==================================================
 local function makePayload(list, color, placeId, jobId)
     local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
-
-    -- Bảng căn hàng
     local lines = {}
     table.insert(lines, ("👥 Players: %s"):format(players))
     table.insert(lines, "🏷️ Name              💰 Money/s")
@@ -441,7 +435,6 @@ local function makePayload(list, color, placeId, jobId)
         "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(%s, '%s', game.Players.LocalPlayer)\n```",
         placeId, jobId
     )
-
     local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
     return {
@@ -455,20 +448,18 @@ local function makePayload(list, color, placeId, jobId)
         }}
     }
 end
+
 -- ==================================================
--- ⚙️ EMBED INDEX (GIỐNG KIỂU TRÊN NHƯNG KHÔNG JOIN/JOB)
+-- ⚙️ EMBED INDEX (chỉ tên + tiền)
 -- ==================================================
 local function makeIndexPayload(list)
-    local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
     local lines = {}
-    table.insert(lines, ("👥 Players: %s"):format(players))
     table.insert(lines, "🏷️ Name              💰 Money/s")
-
     local COLUMN_POS = 22
     for _, t in ipairs(list) do
         local name = t.name or "Unknown"
         local gen  = t.generation or "?"
-        if utf8.len(name) > COLUMN_POS - 2 then
+        if utf8.len(name) > (COLUMN_POS - 2) then
             name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
         end
         local pad = math.max(0, COLUMN_POS - utf8.len(name))
@@ -486,110 +477,107 @@ local function makeIndexPayload(list)
         }}
     }
 end
--- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic + delay 15 s)
+
+-- ==================================================
+-- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic + delay)
 -- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_SEC = 15 -- chỉnh nhanh delay ở đây
+local HIGH_DELAY_SEC = 15
 
 local function sendWebhook(foundTargets)
-	if not foundTargets or #foundTargets == 0 then return end
+    if not foundTargets or #foundTargets == 0 then return end
+    local placeId, jobId = game.PlaceId, game.JobId
+    if jobId == lastJobIdSent then return end
+    lastJobIdSent = jobId
 
-	local placeId, jobId = game.PlaceId, game.JobId
-	if jobId == lastJobIdSent then return end
-	lastJobIdSent = jobId
+    local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
 
-	local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
+    for _, t in ipairs(foundTargets) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "N/A"
+        if not isTarget(name) then continue end
 
-	for _, t in ipairs(foundTargets) do
-		local name = t.name or "Unknown"
-		local gen  = t.generation or "N/A"
-		if not isTarget(name) then continue end
+        local val = parseGeneration(gen)
+        if val <= 0 then continue end
 
-		local val = parseGeneration(gen)
-		if val <= 0 then continue end
-
-		if isSpecial(name) then
-			table.insert(groupSpecial, {name = name, generation = gen})
-		end
-		if val >= 50 then
-			table.insert(groupIndex, {name = name, generation = gen})
-		end
-		if val >= 10 then
-			table.insert(groupHigh, {name = name, generation = gen})
-		end
-		if val >= 1 and val < 10 then
-			table.insert(groupLow, {name = name, generation = gen})
-		end
-	end
-
-	if #groupLow == 0 and #groupHigh == 0 and #groupIndex == 0 and #groupSpecial == 0 then
-		print("ℹ️ Không có target hợp lệ để gửi webhook.")
-		return
-	end
-
-	print("📤 Bắt đầu gửi webhook ...")
-
-	-- 🟡 SPECIAL: gửi NGAY (full)
-	if #groupSpecial > 0 then
-		safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
-		print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
-	end
-
-	-- 🔵 INDEX: 50M+ gửi ngay (tên + tiền)
-	if #groupIndex > 0 then
-		safeSend(webhook_index, makeIndexPayload(groupIndex))
-		print(("📘 Index(50M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
-	end
-
-	-- 🟢 LOW: 1–9M gửi ngay (full)
-	if #groupLow > 0 then
-		safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
-		print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
-	end
-------------------------------------------------------
--- 🔴 HIGH: 10M+ → gửi ngay, trừ khi là Special thật (delay 15s)
-------------------------------------------------------
-if #groupHigh > 0 then
-    -- Khởi tạo nhóm tách riêng
-    local normalHigh = {}
-    local delayedHigh = {}
-    local specialExactSet = {}
-
-    -- ✅ Lưu lại danh sách tên SPECIAL chính xác (viết thường)
-    for _, s in ipairs(groupSpecial) do
-        if s.name then
-            specialExactSet[string.lower(s.name)] = true
+        if isSpecial(name) then
+            table.insert(groupSpecial, {name = name, generation = gen})
+        end
+        if val >= 50 then
+            table.insert(groupIndex, {name = name, generation = gen})
+        end
+        if val >= 10 then
+            table.insert(groupHigh, {name = name, generation = gen})
+        end
+        if val >= 1 and val < 10 then
+            table.insert(groupLow, {name = name, generation = gen})
         end
     end
 
-    -- ✅ Phân loại high: trùng special → delay, còn lại gửi ngay
-    for _, h in ipairs(groupHigh) do
-        local lname = string.lower(h.name or "")
-        if specialExactSet[lname] then
-            table.insert(delayedHigh, h)
-        else
-            table.insert(normalHigh, h)
+    if #groupLow == 0 and #groupHigh == 0 and #groupIndex == 0 and #groupSpecial == 0 then
+        print("ℹ️ Không có target hợp lệ để gửi webhook.")
+        return
+    end
+
+    print("📤 Bắt đầu gửi webhook ...")
+
+    -- 🟡 SPECIAL gửi NGAY (full)
+    if #groupSpecial > 0 then
+        safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
+        print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
+    end
+
+    -- 🔵 INDEX: 50M+ (tên + tiền)
+    if #groupIndex > 0 then
+        safeSend(webhook_index, makeIndexPayload(groupIndex))
+        print(("📘 Index(50M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
+    end
+
+    -- 🟢 LOW: 1–9M (full)
+    if #groupLow > 0 then
+        safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
+        print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
+    end
+
+    ------------------------------------------------------
+    -- 🔴 HIGH: 10M+ → gửi ngay, trừ khi là Special (delay)
+    ------------------------------------------------------
+    if #groupHigh > 0 then
+        local normalHigh, delayedHigh = {}, {}
+        local specialExactSet = {}
+
+        for _, s in ipairs(groupSpecial) do
+            if s.name then
+                specialExactSet[string.lower(s.name)] = true
+            end
         end
-    end
 
-    -- ⚡ Gửi nhóm HIGH bình thường NGAY
-    if #normalHigh > 0 then
-        print(("🔥 High(10M+): %d item(s) gửi NGAY (full info)"):format(#normalHigh))
-        safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
-    else
-        print("ℹ️ Không có HIGH nào gửi ngay.")
-    end
+        for _, h in ipairs(groupHigh) do
+            local lname = string.lower(h.name or "")
+            if specialExactSet[lname] then
+                table.insert(delayedHigh, h)
+            else
+                table.insert(normalHigh, h)
+            end
+        end
 
-    -- ⏱️ Gửi nhóm HIGH trùng SPECIAL (exact match) SAU 15 giây
-    if #delayedHigh > 0 then
-        local delayedCopy = table.clone(delayedHigh) -- tránh biến bị xoá
-        print(("⏱️ High trùng SPECIAL sẽ gửi sau 15s (%d item):"):format(#delayedCopy))
-        task.delay(15, function()
-            safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
-            print(("✅ High trùng SPECIAL (delay 15s) đã gửi: %d item(s)"):format(#delayedCopy))
-        end)
+        if #normalHigh > 0 then
+            safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
+            print(("🔥 High(10M+): %d gửi NGAY (full info)"):format(#normalHigh))
+        end
+
+        if #delayedHigh > 0 then
+            local delayedCopy = {}
+            for i = 1, #delayedHigh do delayedCopy[i] = delayedHigh[i] end
+            print(("⏱️ High trùng SPECIAL sẽ gửi sau %ds (%d item)"):format(HIGH_DELAY_SEC, #delayedCopy))
+            task.delay(HIGH_DELAY_SEC, function()
+                safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
+                print(("✅ High trùng SPECIAL (delay %ds) đã gửi: %d item(s)"):format(HIGH_DELAY_SEC, #delayedCopy))
+            end)
+        end
     end
 end
+
 -- ==================================================
 -- CHECK TARGETS + LOOP (giữ cơ chế quét cũ, quét mỗi 3s)
 -- ==================================================
