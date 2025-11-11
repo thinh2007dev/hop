@@ -295,6 +295,24 @@ local targets = {
     'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
     'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
+-- ==================================================
+-- ⚙️ DANH SÁCH TARGET CHÍNH
+-- ==================================================
+local targets = {
+    'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
+    'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
+    'La Grande Combinasion','Nuclearo Dinossauro','Esok Sekolah','Ketupat Kepat',
+    'Money Money Puggy','Tictac Sahur','Ketchuru and Musturu','Garama and Madundung',
+    'Spaghetti Tualetti','Dragon Cannelloni','67','Mariachi Corazoni','Tacorita Bicicleta',
+    'La Extinct Grande','Quesadilla Crocodila','Los Nooo My Hotspotsitos','Las Sis',
+    'Celularcini Viciosini','Los Bros','Tralaledon','Los Tacoritas','Los Primos',
+    'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
+    'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
+    'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
+    'Los Matteos','Bisonte Guppitere','La Vacca Saturno Saturnita','Los Spiderinis','Los Tralaleritos',
+    'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
+    'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
+}
 
 -- ==================================================
 -- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
@@ -388,18 +406,15 @@ elseif typeof(http) == "table" and typeof(http.request) == "function" then
 end
 
 local sendQueue, sending = {}, false
-
 local function processQueue()
 	if sending then return end
 	sending = true
-
 	while #sendQueue > 0 do
 		local item = table.remove(sendQueue, 1)
 		if not http_request_impl then
 			warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
 			break
 		end
-
 		local ok, res = pcall(function()
 			return http_request_impl({
 				Url = item.url,
@@ -408,7 +423,6 @@ local function processQueue()
 				Body = HttpService:JSONEncode(item.payload),
 			})
 		end)
-
 		if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
 			print("📤 Webhook OK →", item.url)
 		else
@@ -416,13 +430,10 @@ local function processQueue()
 			table.insert(sendQueue, item)
 			task.wait(2)
 		end
-
 		task.wait(0.5)
 	end
-
 	sending = false
 end
-
 local function safeSend(url, payload)
 	table.insert(sendQueue, {url=url, payload=payload})
 	task.spawn(processQueue)
@@ -434,7 +445,6 @@ end
 local function makePayload(list, color, placeId, jobId)
 	local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
 	local lines = {}
-
 	table.insert(lines, ("👥 Players: %s"):format(players))
 	table.insert(lines, "🏷️ Name              💰 Money/s")
 
@@ -457,7 +467,6 @@ local function makePayload(list, color, placeId, jobId)
 		placeId, jobId
 	)
 	local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
-
 	return {
 		embeds = {{
 			author = {name = "Brainrot Notify | Grape Hub"},
@@ -471,14 +480,13 @@ local function makePayload(list, color, placeId, jobId)
 end
 
 -- ==================================================
--- ⚙️ GỬI WEBHOOK CHÍNH (logic final)
+-- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic)
 -- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_SEC = 10 -- ⏱️ chỉ delay 10s khi trùng special
+local HIGH_DELAY_SEC = 10 -- chỉ delay 10s khi high trùng special
 
 local function sendWebhook(foundTargets)
 	if not foundTargets or #foundTargets == 0 then return end
-
 	local placeId, jobId = game.PlaceId, game.JobId
 	if jobId == lastJobIdSent then return end
 	lastJobIdSent = jobId
@@ -489,53 +497,42 @@ local function sendWebhook(foundTargets)
 		local name = t.name or "Unknown"
 		local gen  = t.generation or "N/A"
 		if not isTarget(name) then continue end
-
 		local val = parseGeneration(gen)
 		if val <= 0 then continue end
 
 		if isSpecial(name) then
 			table.insert(groupSpecial, {name = name, generation = gen})
 		end
-
 		if val >= 10 then
 			table.insert(groupHigh, {name = name, generation = gen})
-		end
-
-		if val >= 1 and val < 10 then
+		elseif val >= 1 then
 			table.insert(groupLow, {name = name, generation = gen})
 		end
 	end
 
-	if #groupLow == 0 and #groupHigh == 0 and #groupSpecial == 0 then
-		print("ℹ️ Không có target hợp lệ để gửi webhook.")
-		return
-	end
-
-	print("📤 Bắt đầu gửi webhook ...")
-
+	-- Gửi special ngay
 	if #groupSpecial > 0 then
 		safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
-		print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
+		print(("🚨 Special: %d item(s) gửi NGAY"):format(#groupSpecial))
 	end
 
+	-- Gửi low ngay
 	if #groupLow > 0 then
 		safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
-		print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
+		print(("📩 Low(1–9M): %d gửi NGAY"):format(#groupLow))
 	end
 
+	-- High: gửi ngay, trừ khi trùng special → delay 10s
 	if #groupHigh > 0 then
 		local normalHigh, delayedHigh = {}, {}
-		local specialExactSet = {}
-
+		local specialSet = {}
 		for _, s in ipairs(groupSpecial) do
-			if s.name then
-				specialExactSet[string.lower(s.name)] = true
-			end
+			specialSet[string.lower(s.name)] = true
 		end
 
 		for _, h in ipairs(groupHigh) do
-			local lname = string.lower(h.name or "")
-			if specialExactSet[lname] then
+			local lname = string.lower(h.name)
+			if specialSet[lname] then
 				table.insert(delayedHigh, h)
 			else
 				table.insert(normalHigh, h)
@@ -544,20 +541,14 @@ local function sendWebhook(foundTargets)
 
 		if #normalHigh > 0 then
 			safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
-			print(("🔥 High(10M+): %d gửi NGAY (full info)"):format(#normalHigh))
+			print(("🔥 High(10M+): %d gửi NGAY"):format(#normalHigh))
 		end
 
 		if #delayedHigh > 0 then
-			local delayedCopy = {}
-			for i = 1, #delayedHigh do
-				delayedCopy[i] = delayedHigh[i]
-			end
-
-			print(("⏱️ High trùng SPECIAL sẽ gửi sau %ds (%d item)"):format(HIGH_DELAY_SEC, #delayedCopy))
-
+			print(("⏱️ High trùng SPECIAL sẽ gửi sau %ds (%d item)"):format(HIGH_DELAY_SEC, #delayedHigh))
 			task.delay(HIGH_DELAY_SEC, function()
-				safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
-				print(("✅ High trùng SPECIAL (delay %ds) đã gửi: %d item(s)"):format(HIGH_DELAY_SEC, #delayedCopy))
+				safeSend(webhook_high, makePayload(delayedHigh, 0x1A1AFF, placeId, jobId))
+				print(("✅ High trùng SPECIAL (delay %ds) đã gửi xong"):format(HIGH_DELAY_SEC))
 			end)
 		end
 	end
