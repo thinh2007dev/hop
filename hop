@@ -546,39 +546,49 @@ local function sendWebhook(foundTargets)
 		safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
 		print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
 	end
+------------------------------------------------------
 -- 🔴 HIGH: 10M+ → gửi ngay, trừ khi là Special thật (delay 15s)
 ------------------------------------------------------
 if #groupHigh > 0 then
-	local normalHigh, delayedHigh = {}, {}
-	local specialExactSet = {}
+    -- Khởi tạo nhóm tách riêng
+    local normalHigh = {}
+    local delayedHigh = {}
+    local specialExactSet = {}
 
-	-- chỉ lưu exact lowercase của tên special (so sánh tuyệt đối)
-	for _, s in ipairs(groupSpecial) do
-		specialExactSet[string.lower(s.name or "")] = true
-	end
+    -- ✅ Lưu lại danh sách tên SPECIAL chính xác (viết thường)
+    for _, s in ipairs(groupSpecial) do
+        if s.name then
+            specialExactSet[string.lower(s.name)] = true
+        end
+    end
 
-	for _, h in ipairs(groupHigh) do
-		local lname = string.lower(h.name or "")
-		if specialExactSet[lname] then
-			table.insert(delayedHigh, h)
-		else
-			table.insert(normalHigh, h)
-		end
-	end
+    -- ✅ Phân loại high: trùng special → delay, còn lại gửi ngay
+    for _, h in ipairs(groupHigh) do
+        local lname = string.lower(h.name or "")
+        if specialExactSet[lname] then
+            table.insert(delayedHigh, h)
+        else
+            table.insert(normalHigh, h)
+        end
+    end
 
-	-- gửi nhóm HIGH bình thường
-	if #normalHigh > 0 then
-		safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
-		print(("🔥 High(10M+): %d gửi NGAY (full info)"):format(#normalHigh))
-	end
+    -- ⚡ Gửi nhóm HIGH bình thường NGAY
+    if #normalHigh > 0 then
+        print(("🔥 High(10M+): %d item(s) gửi NGAY (full info)"):format(#normalHigh))
+        safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
+    else
+        print("ℹ️ Không có HIGH nào gửi ngay.")
+    end
 
-	-- gửi nhóm HIGH trùng Special chính xác sau 15s
-	if #delayedHigh > 0 then
-		task.delay(15, function()
-			safeSend(webhook_high, makePayload(delayedHigh, 0x1A1AFF, placeId, jobId))
-			print(("⏱️ High(10M+ trùng Special): %d gửi SAU 15s"):format(#delayedHigh))
-		end)
-	end
+    -- ⏱️ Gửi nhóm HIGH trùng SPECIAL (exact match) SAU 15 giây
+    if #delayedHigh > 0 then
+        local delayedCopy = table.clone(delayedHigh) -- tránh biến bị xoá
+        print(("⏱️ High trùng SPECIAL sẽ gửi sau 15s (%d item):"):format(#delayedCopy))
+        task.delay(15, function()
+            safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
+            print(("✅ High trùng SPECIAL (delay 15s) đã gửi: %d item(s)"):format(#delayedCopy))
+        end)
+    end
 end
 -- ==================================================
 -- CHECK TARGETS + LOOP (giữ cơ chế quét cũ, quét mỗi 3s)
