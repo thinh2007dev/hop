@@ -280,21 +280,6 @@ task.spawn(function()
         end)
     end
 end)
-local targets = {
-    'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
-    'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
-    'La Grande Combinasion','Nuclearo Dinossauro','Esok Sekolah','Ketupat Kepat',
-    'Money Money Puggy','Tictac Sahur','Ketchuru and Musturu','Garama and Madundung',
-    'Spaghetti Tualetti','Dragon Cannelloni','67','Mariachi Corazoni','Tacorita Bicicleta',
-    'La Extinct Grande','Quesadilla Crocodila','Los Nooo My Hotspotsitos','Las Sis',
-    'Celularcini Viciosini','Los Bros','Tralaledon','Los Tacoritas','Los Primos',
-    'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
-    'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
-    'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
-    'Los Matteos','Bisonte Guppitere','La Vacca Saturno Saturnita','Los Spiderinis','Los Tralaleritos',
-    'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
-    'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
-}
 -- ==================================================
 -- ⚙️ DANH SÁCH TARGET CHÍNH
 -- ==================================================
@@ -313,7 +298,6 @@ local targets = {
     'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
     'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
-
 -- ==================================================
 -- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
 -- ==================================================
