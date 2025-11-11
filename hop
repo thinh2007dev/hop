@@ -295,6 +295,7 @@ local targets = {
     'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
     'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
+
 -- ==================================================
 -- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
 -- ==================================================
@@ -368,9 +369,6 @@ local webhook_low =
 local webhook_high =
 	"https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy"
 
-local webhook_index =
-	"https://discord.com/api/webhooks/1437032441226203277/qvgc98yhyfH1SjZuE086LbabJV7He3ZO84Ve6US143l9OHxbwRfAAPqN97SLSZokMSPY"
-
 local webhook_special =
 	"https://discord.com/api/webhooks/1437032661188218932/CWZrxOaTlBJUSmkcPkFUHw_deJ9XaDjWsV8FGd8KN8NFZni7-GnCA2Yeap6fCAbdx1nE"
 
@@ -394,12 +392,14 @@ local sendQueue, sending = {}, false
 local function processQueue()
 	if sending then return end
 	sending = true
+
 	while #sendQueue > 0 do
 		local item = table.remove(sendQueue, 1)
 		if not http_request_impl then
 			warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
 			break
 		end
+
 		local ok, res = pcall(function()
 			return http_request_impl({
 				Url = item.url,
@@ -408,6 +408,7 @@ local function processQueue()
 				Body = HttpService:JSONEncode(item.payload),
 			})
 		end)
+
 		if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
 			print("📤 Webhook OK →", item.url)
 		else
@@ -415,8 +416,10 @@ local function processQueue()
 			table.insert(sendQueue, item)
 			task.wait(2)
 		end
+
 		task.wait(0.5)
 	end
+
 	sending = false
 end
 
@@ -430,8 +433,8 @@ end
 -- ==================================================
 local function makePayload(list, color, placeId, jobId)
 	local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
-
 	local lines = {}
+
 	table.insert(lines, ("👥 Players: %s"):format(players))
 	table.insert(lines, "🏷️ Name              💰 Money/s")
 
@@ -468,41 +471,10 @@ local function makePayload(list, color, placeId, jobId)
 end
 
 -- ==================================================
--- ⚙️ EMBED INDEX (chỉ tên + tiền)
--- ==================================================
-local function makeIndexPayload(list)
-	local lines = {}
-	table.insert(lines, "🏷️ Name              💰 Money/s")
-
-	local COLUMN_POS = 22
-	for _, t in ipairs(list) do
-		local name = t.name or "Unknown"
-		local gen  = t.generation or "?"
-		if utf8.len(name) > (COLUMN_POS - 2) then
-			name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
-		end
-		local pad = math.max(0, COLUMN_POS - utf8.len(name))
-		table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
-	end
-
-	local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
-	local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
-
-	return {
-		embeds = {{
-			author = {name = "Brainrot Notify | Grape Hub"},
-			color  = 0x000000,
-			description = tableBlock,
-			footer = {text = footerTime},
-		}}
-	}
-end
-
--- ==================================================
--- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic + delay)
+-- ⚙️ GỬI WEBHOOK CHÍNH (logic final)
 -- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_SEC = 15
+local HIGH_DELAY_SEC = 10 -- ⏱️ chỉ delay 10s khi trùng special
 
 local function sendWebhook(foundTargets)
 	if not foundTargets or #foundTargets == 0 then return end
@@ -511,7 +483,7 @@ local function sendWebhook(foundTargets)
 	if jobId == lastJobIdSent then return end
 	lastJobIdSent = jobId
 
-	local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
+	local groupLow, groupHigh, groupSpecial = {}, {}, {}
 
 	for _, t in ipairs(foundTargets) do
 		local name = t.name or "Unknown"
@@ -525,10 +497,6 @@ local function sendWebhook(foundTargets)
 			table.insert(groupSpecial, {name = name, generation = gen})
 		end
 
-		if val >= 50 then
-			table.insert(groupIndex, {name = name, generation = gen})
-		end
-
 		if val >= 10 then
 			table.insert(groupHigh, {name = name, generation = gen})
 		end
@@ -538,7 +506,7 @@ local function sendWebhook(foundTargets)
 		end
 	end
 
-	if #groupLow == 0 and #groupHigh == 0 and #groupIndex == 0 and #groupSpecial == 0 then
+	if #groupLow == 0 and #groupHigh == 0 and #groupSpecial == 0 then
 		print("ℹ️ Không có target hợp lệ để gửi webhook.")
 		return
 	end
@@ -548,11 +516,6 @@ local function sendWebhook(foundTargets)
 	if #groupSpecial > 0 then
 		safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
 		print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
-	end
-
-	if #groupIndex > 0 then
-		safeSend(webhook_index, makeIndexPayload(groupIndex))
-		print(("📘 Index(50M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
 	end
 
 	if #groupLow > 0 then
