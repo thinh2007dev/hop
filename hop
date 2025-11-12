@@ -281,59 +281,75 @@ task.spawn(function()
     end
 end)
 -- ==================================================
--- ⚙️ DANH SÁCH TARGET (gộp luôn cho SPECIAL)
+-- ⚙️ DANH SÁCH TARGET CHÍNH
 -- ==================================================
 local targets = {
-	'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
-	'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
-	'La Grande Combinasion','Nuclearo Dinossauro','Esok Sekolah','Ketupat Kepat',
-	'Money Money Puggy','Tictac Sahur','Ketchuru and Musturu','Garama and Madundung',
-	'Spaghetti Tualetti','Dragon Cannelloni','67','Mariachi Corazoni','Tacorita Bicicleta',
-	'La Extinct Grande','Quesadilla Crocodila','Los Nooo My Hotspotsitos','Las Sis',
-	'Celularcini Viciosini','Los Bros','Tralaledon','Los Tacoritas','Los Primos',
-	'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
-	'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
-	'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
-	'Los Matteos','Bisonte Guppitere','La Vacca Saturno Saturnita','Los Spiderinis','Los Tralaleritos',
-	'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
-	'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
+    'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
+    'Burrito Bandito','Strawberry Elephant','Chicleteira Bicicleteira','Los Chicleteiras',
+    'La Grande Combinasion','Nuclearo Dinossauro','Esok Sekolah','Ketupat Kepat',
+    'Money Money Puggy','Tictac Sahur','Ketchuru and Musturu','Garama and Madundung',
+    'Spaghetti Tualetti','Dragon Cannelloni','67','Mariachi Corazoni','Tacorita Bicicleta',
+    'La Extinct Grande','Quesadilla Crocodila','Los Nooo My Hotspotsitos','Las Sis',
+    'Celularcini Viciosini','Los Bros','Tralaledon','Los Tacoritas','Los Primos',
+    'Chillin Chili','Los Combinasionas','Los Hotspotsitos','La Supreme Combinasion',
+    'Los 67','La Secret Combinasion','Burguro And Fryuro','La Spooky Grande','Los Mobilis',
+    'Eviledon','Spooky and Pumpky','Mieteteira Bicicleteira','Los Spooky Combinasionas','Meowl',
+    'Los Matteos','Bisonte Guppitere','La Vacca Saturno Saturnita','Los Spiderinis','Los Tralaleritos',
+    'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
+    'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
-
 -- ==================================================
 -- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
 -- ==================================================
 local function parseGeneration(gen)
-	if not gen or gen == "" then return 0 end
-	gen = tostring(gen):gsub(",", ""):gsub("%s+", ""):upper()
-	local num = tonumber(gen:match("([%d%.]+)")) or 0
+    if not gen or gen == "" then return 0 end
+    gen = tostring(gen):gsub(",", ""):gsub("%s+", ""):upper()
+    local num = tonumber(gen:match("([%d%.]+)")) or 0
 
-	if gen:find("B") then
-		return num * 1000
-	elseif gen:find("M") then
-		return num
-	elseif gen:find("K") then
-		return num / 1000
-	elseif gen:find("%$") then
-		if num >= 1e9 then return (num / 1e9) * 1000
-		elseif num >= 1e6 then return num / 1e6
-		elseif num >= 1e3 then return num / 1e3 / 1000
-		else return num / 1e6 end
-	else
-		return num
-	end
+    if gen:find("B") then
+        return num * 1000
+    elseif gen:find("M") then
+        return num
+    elseif gen:find("K") then
+        return num / 1000
+    elseif gen:find("%$") then
+        if num >= 1e9 then return (num / 1e9) * 1000
+        elseif num >= 1e6 then return num / 1e6
+        elseif num >= 1e3 then return num / 1e3 / 1000
+        else return num / 1e6 end
+    else
+        return num
+    end
 end
 
 -- ==================================================
 -- ⚙️ KIỂM TRA TARGET
 -- ==================================================
 local function isTarget(name)
-	local n = string.lower(name or "")
-	for _, t in ipairs(targets) do
-		if n:find(string.lower(t), 1, true) then
-			return true
-		end
-	end
-	return false
+    local n = string.lower(name or "")
+    for _, t in ipairs(targets) do
+        if n:find(string.lower(t), 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- ==================================================
+-- ⚙️ SPECIAL LIST
+-- ==================================================
+local specialList = {
+    'Headless Horseman','Meowl','Dragon Cannelloni',
+    'Garama and Madundung','Spooky and Pumpky','Burguro And Fryuro'
+}
+local function isSpecial(name)
+    local n = string.lower(name or "")
+    for _, s in ipairs(specialList) do
+        if n:find(string.lower(s), 1, true) then
+            return true
+        end
+    end
+    return false
 end
 
 -- ==================================================
@@ -345,185 +361,221 @@ local webhook_index   = "https://discord.com/api/webhooks/1437032441226203277/qv
 local webhook_special = "https://discord.com/api/webhooks/1437032661188218932/CWZrxOaTlBJUSmkcPkFUHw_deJ9XaDjWsV8FGd8KN8NFZni7-GnCA2Yeap6fCAbdx1nE"
 
 -- ==================================================
--- ⚙️ HTTP REQUEST
+-- ⚙️ HTTP REQUEST (tương thích executor)
 -- ==================================================
 local http_request_impl = nil
 if typeof(syn) == "table" and typeof(syn.request) == "function" then
-	http_request_impl = syn.request
+    http_request_impl = syn.request
 elseif typeof(http_request) == "function" then
-	http_request_impl = http_request
+    http_request_impl = http_request
 elseif typeof(request) == "function" then
-	http_request_impl = request
+    http_request_impl = request
 elseif typeof(http) == "table" and typeof(http.request) == "function" then
-	http_request_impl = http.request
+    http_request_impl = http.request
 end
 
 local sendQueue, sending = {}, false
 local function processQueue()
-	if sending then return end
-	sending = true
-	while #sendQueue > 0 do
-		local item = table.remove(sendQueue, 1)
-		if not http_request_impl then
-			warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
-			break
-		end
-		local ok, res = pcall(function()
-			return http_request_impl({
-				Url = item.url,
-				Method = "POST",
-				Headers = {["Content-Type"] = "application/json"},
-				Body = HttpService:JSONEncode(item.payload),
-			})
-		end)
-		if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
-			print("📤 Webhook OK →", item.url)
-		else
-			warn("⚠️ Webhook lỗi:", res and res.StatusCode, res and res.Body)
-			table.insert(sendQueue, item)
-			task.wait(2)
-		end
-		task.wait(0.5)
-	end
-	sending = false
+    if sending then return end
+    sending = true
+    while #sendQueue > 0 do
+        local item = table.remove(sendQueue, 1)
+        if not http_request_impl then
+            warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
+            break
+        end
+        local ok, res = pcall(function()
+            return http_request_impl({
+                Url = item.url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(item.payload),
+            })
+        end)
+        if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
+            print("📤 Webhook OK →", item.url)
+        else
+            warn("⚠️ Webhook lỗi:", res and res.StatusCode, res and res.Body)
+            table.insert(sendQueue, item)
+            task.wait(2)
+        end
+        task.wait(0.5)
+    end
+    sending = false
 end
 
 local function safeSend(url, payload)
-	table.insert(sendQueue, {url=url, payload=payload})
-	task.spawn(processQueue)
+    table.insert(sendQueue, {url=url, payload=payload})
+    task.spawn(processQueue)
 end
 
 -- ==================================================
--- ⚙️ EMBED FULL (LOW/HIGH/SPECIAL)
+-- ⚙️ EMBED FULL (low/high/special)
 -- ==================================================
 local function makePayload(list, color, placeId, jobId)
-	local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
-	local lines = {}
-	table.insert(lines, ("👥 Players: %s"):format(players))
-	table.insert(lines, "🏷️ Name              💰 Money/s")
-	local COLUMN_POS = 22
-	for _, t in ipairs(list) do
-		local name = t.name or "Unknown"
-		local gen  = t.generation or "?"
-		if utf8.len(name) > COLUMN_POS - 2 then
-			name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
-		end
-		local pad = math.max(0, COLUMN_POS - utf8.len(name))
-		table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
-	end
-	local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
-	local joinLink = ("🌐 [**JOIN SERVER HERE**](https://chillihub1.github.io/chillihub-joiner/?placeId=%s&gameInstanceId=%s)"):format(placeId, jobId)
-	local joinScript = string.format(
-		"```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(%s, '%s', game.Players.LocalPlayer)\n```",
-		placeId, jobId
-	)
-	local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+    local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
+    local lines = {}
+    table.insert(lines, ("👥 Players: %s"):format(players))
+    table.insert(lines, "🏷️ Name              💰 Money/s")
+    local COLUMN_POS = 22
+    for _, t in ipairs(list) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "?"
+        if utf8.len(name) > COLUMN_POS - 2 then
+            name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
+        end
+        local pad = math.max(0, COLUMN_POS - utf8.len(name))
+        table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
+    end
+    local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
 
-	return {
-		embeds = {{
-			author = {name = "Brainrot Notify | Grape Hub"},
-			color  = color or 0x000000,
-			description = tableBlock ..
-				"\n🆔 **Job ID (PC):** `" .. jobId .. "`\n" ..
-				joinLink .. "\n\n📜 **Join Script:**\n" .. joinScript,
-			footer = {text = footerTime},
-		}}
-	}
+    local joinLink = ("🌐 [**JOIN SERVER HERE**](https://chillihub1.github.io/chillihub-joiner/?placeId=%s&gameInstanceId=%s)")
+        :format(placeId, jobId)
+    local joinScript = string.format(
+        "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(%s, '%s', game.Players.LocalPlayer)\n```",
+        placeId, jobId
+    )
+    local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+
+    return {
+        embeds = {{
+            author = {name = "Brainrot Notify | Grape Hub"},
+            color  = color or 0x000000,
+            description = tableBlock ..
+                "\n🆔 **Job ID (PC):** `" .. jobId .. "`\n" ..
+                joinLink .. "\n\n📜 **Join Script:**\n" .. joinScript,
+            footer = {text = footerTime},
+        }}
+    }
 end
 
 -- ==================================================
 -- ⚙️ EMBED INDEX (chỉ tên + tiền)
 -- ==================================================
 local function makeIndexPayload(list)
-	local lines = {}
-	table.insert(lines, "🏷️ Name              💰 Money/s")
-	local COLUMN_POS = 22
-	for _, t in ipairs(list) do
-		local name = t.name or "Unknown"
-		local gen  = t.generation or "?"
-		if utf8.len(name) > (COLUMN_POS - 2) then
-			name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
-		end
-		local pad = math.max(0, COLUMN_POS - utf8.len(name))
-		table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
-	end
-	local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
-	local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
+    local lines = {}
+    table.insert(lines, "🏷️ Name              💰 Money/s")
+    local COLUMN_POS = 22
+    for _, t in ipairs(list) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "?"
+        if utf8.len(name) > (COLUMN_POS - 2) then
+            name = string.sub(name, 1, COLUMN_POS - 5) .. "..."
+        end
+        local pad = math.max(0, COLUMN_POS - utf8.len(name))
+        table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
+    end
+    local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
+    local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
-	return {
-		embeds = {{
-			author = {name = "Brainrot Notify | Grape Hub"},
-			color  = 0x000000,
-			description = tableBlock,
-			footer = {text = footerTime},
-		}}
-	}
+    return {
+        embeds = {{
+            author = {name = "Brainrot Notify | Grape Hub"},
+            color  = 0x000000,
+            description = tableBlock,
+            footer = {text = footerTime},
+        }}
+    }
 end
 
 -- ==================================================
--- ⚙️ GỬI WEBHOOK CHÍNH (logic mới)
+-- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic + delay)
 -- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_SEC = 10
+local HIGH_DELAY_SEC = 15
 
 local function sendWebhook(foundTargets)
-	if not foundTargets or #foundTargets == 0 then return end
-	local placeId, jobId = game.PlaceId, game.JobId
-	if jobId == lastJobIdSent then return end
-	lastJobIdSent = jobId
+    if not foundTargets or #foundTargets == 0 then return end
+    local placeId, jobId = game.PlaceId, game.JobId
+    if jobId == lastJobIdSent then return end
+    lastJobIdSent = jobId
 
-	local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
+    local groupLow, groupHigh, groupIndex, groupSpecial = {}, {}, {}, {}
 
-	for _, t in ipairs(foundTargets) do
-		local name = t.name or "Unknown"
-		local gen  = t.generation or "N/A"
-		if not isTarget(name) then continue end
+    for _, t in ipairs(foundTargets) do
+        local name = t.name or "Unknown"
+        local gen  = t.generation or "N/A"
+        if not isTarget(name) then continue end
 
-		local val = parseGeneration(gen)
-		if val <= 0 then continue end
+        local val = parseGeneration(gen)
+        if val <= 0 then continue end
 
-		if val >= 1 and val < 10 then
-			table.insert(groupLow, {name = name, generation = gen})
-		end
-		if val >= 10 then
-			table.insert(groupHigh, {name = name, generation = gen})
-			table.insert(groupSpecial, {name = name, generation = gen}) -- special dùng chung target
-		end
-		if val >= 50 then
-			table.insert(groupIndex, {name = name, generation = gen})
-		end
-	end
+        if isSpecial(name) then
+            table.insert(groupSpecial, {name = name, generation = gen})
+        end
+        if val >= 50 then
+            table.insert(groupIndex, {name = name, generation = gen})
+        end
+        if val >= 10 then
+            table.insert(groupHigh, {name = name, generation = gen})
+        end
+        if val >= 1 and val < 10 then
+            table.insert(groupLow, {name = name, generation = gen})
+        end
+    end
 
-	print("📤 Bắt đầu gửi webhook ...")
+    if #groupLow == 0 and #groupHigh == 0 and #groupIndex == 0 and #groupSpecial == 0 then
+        print("ℹ️ Không có target hợp lệ để gửi webhook.")
+        return
+    end
 
-	-- 🟢 LOW: 1–9M gửi NGAY (full)
-	if #groupLow > 0 then
-		safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
-		print(("📩 Low(1–9M): %d gửi NGAY"):format(#groupLow))
-	end
+    print("📤 Bắt đầu gửi webhook ...")
 
-	-- 🔵 INDEX: 50M+ gửi NGAY (chỉ tên + tiền)
-	if #groupIndex > 0 then
-		safeSend(webhook_index, makeIndexPayload(groupIndex))
-		print(("📘 Index(50M+): %d gửi NGAY (tên + tiền)"):format(#groupIndex))
-	end
+    -- 🟡 SPECIAL gửi NGAY (full)
+    if #groupSpecial > 0 then
+        safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
+        print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
+    end
 
-	-- 🔴 HIGH: 10M+ gửi SAU 10s (full)
-	if #groupHigh > 0 then
-		local copy = {}
-		for i = 1, #groupHigh do copy[i] = groupHigh[i] end
-		print(("⏱️ High(10M+): %d sẽ gửi sau %ds"):format(#copy, HIGH_DELAY_SEC))
-		task.delay(HIGH_DELAY_SEC, function()
-			safeSend(webhook_high, makePayload(copy, 0x1A1AFF, placeId, jobId))
-			print(("✅ High(10M+): %d đã gửi SAU %ds"):format(#copy, HIGH_DELAY_SEC))
-		end)
-	end
+    -- 🔵 INDEX: 50M+ (tên + tiền)
+    if #groupIndex > 0 then
+        safeSend(webhook_index, makeIndexPayload(groupIndex))
+        print(("📘 Index(50M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
+    end
 
-	-- 🟡 SPECIAL: 10M+ gửi NGAY (full)
-	if #groupSpecial > 0 then
-		safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
-		print(("🚨 Special(10M+): %d gửi NGAY (full info)"):format(#groupSpecial))
-	end
+    -- 🟢 LOW: 1–9M (full)
+    if #groupLow > 0 then
+        safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
+        print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
+    end
+
+    ------------------------------------------------------
+    -- 🔴 HIGH: 10M+ → gửi ngay, trừ khi là Special (delay)
+    ------------------------------------------------------
+    if #groupHigh > 0 then
+        local normalHigh, delayedHigh = {}, {}
+        local specialExactSet = {}
+
+        for _, s in ipairs(groupSpecial) do
+            if s.name then
+                specialExactSet[string.lower(s.name)] = true
+            end
+        end
+
+        for _, h in ipairs(groupHigh) do
+            local lname = string.lower(h.name or "")
+            if specialExactSet[lname] then
+                table.insert(delayedHigh, h)
+            else
+                table.insert(normalHigh, h)
+            end
+        end
+
+        if #normalHigh > 0 then
+            safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
+            print(("🔥 High(10M+): %d gửi NGAY (full info)"):format(#normalHigh))
+        end
+
+        if #delayedHigh > 0 then
+            local delayedCopy = {}
+            for i = 1, #delayedHigh do delayedCopy[i] = delayedHigh[i] end
+            print(("⏱️ High trùng SPECIAL sẽ gửi sau %ds (%d item)"):format(HIGH_DELAY_SEC, #delayedCopy))
+            task.delay(HIGH_DELAY_SEC, function()
+                safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
+                print(("✅ High trùng SPECIAL (delay %ds) đã gửi: %d item(s)"):format(HIGH_DELAY_SEC, #delayedCopy))
+            end)
+        end
+    end
 end
 -- ==================================================
 -- CHECK TARGETS + LOOP (giữ cơ chế quét cũ, quét mỗi 3s)
