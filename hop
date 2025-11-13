@@ -482,7 +482,7 @@ end
 -- ⚙️ GỬI WEBHOOK CHÍNH (đã fix logic + delay)
 -- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_SEC = 15
+local HIGH_DELAY_SEC = 10
 
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
