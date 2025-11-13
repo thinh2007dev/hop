@@ -486,6 +486,7 @@ local HIGH_DELAY_SEC = 10
 
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
+
     local placeId, jobId = game.PlaceId, game.JobId
     if jobId == lastJobIdSent then return end
     lastJobIdSent = jobId
@@ -500,15 +501,22 @@ local function sendWebhook(foundTargets)
         local val = parseGeneration(gen)
         if val <= 0 then continue end
 
+        -- SPECIAL (theo specialList)
         if isSpecial(name) then
             table.insert(groupSpecial, {name = name, generation = gen})
         end
-        if val >= 50 then
+
+        -- INDEX: 10M+ (KHÔNG GIỚI HẠN)
+        if val >= 10 then
             table.insert(groupIndex, {name = name, generation = gen})
         end
+
+        -- HIGH: 10M+ (KHÔNG GIỚI HẠN)
         if val >= 10 then
             table.insert(groupHigh, {name = name, generation = gen})
         end
+
+        -- LOW: 1–9M
         if val >= 1 and val < 10 then
             table.insert(groupLow, {name = name, generation = gen})
         end
@@ -521,19 +529,25 @@ local function sendWebhook(foundTargets)
 
     print("📤 Bắt đầu gửi webhook ...")
 
-    -- 🟡 SPECIAL gửi NGAY (full)
+    ------------------------------------------------------
+    -- 🟡 SPECIAL: gửi NGAY (full info)
+    ------------------------------------------------------
     if #groupSpecial > 0 then
         safeSend(webhook_special, makePayload(groupSpecial, 0xFFD700, placeId, jobId))
         print(("🚨 Special: %d item(s) gửi NGAY (full info)"):format(#groupSpecial))
     end
 
-    -- 🔵 INDEX: 50M+ (tên + tiền)
+    ------------------------------------------------------
+    -- 🔵 INDEX: 10M+ → gửi ngay (chỉ tên + tiền)
+    ------------------------------------------------------
     if #groupIndex > 0 then
         safeSend(webhook_index, makeIndexPayload(groupIndex))
-        print(("📘 Index(50M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
+        print(("📘 Index(10M+): %d item(s) gửi ngay (tên + tiền)"):format(#groupIndex))
     end
 
-    -- 🟢 LOW: 1–9M (full)
+    ------------------------------------------------------
+    -- 🟢 LOW: 1–9M → gửi NGAY (full info)
+    ------------------------------------------------------
     if #groupLow > 0 then
         safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
         print(("📩 Low(1–9M): %d item(s) gửi NGAY (full info)"):format(#groupLow))
@@ -546,33 +560,40 @@ local function sendWebhook(foundTargets)
         local normalHigh, delayedHigh = {}, {}
         local specialExactSet = {}
 
+        -- map tên special (lowercase) để so sánh exact
         for _, s in ipairs(groupSpecial) do
             if s.name then
                 specialExactSet[string.lower(s.name)] = true
             end
         end
 
+        -- tách HIGH thành 2 nhóm
         for _, h in ipairs(groupHigh) do
             local lname = string.lower(h.name or "")
             if specialExactSet[lname] then
-                table.insert(delayedHigh, h)
+                table.insert(delayedHigh, h)   -- trùng special → delay
             else
-                table.insert(normalHigh, h)
+                table.insert(normalHigh, h)    -- thường → gửi ngay
             end
         end
 
+        -- gửi HIGH thường NGAY
         if #normalHigh > 0 then
             safeSend(webhook_high, makePayload(normalHigh, 0x1A1AFF, placeId, jobId))
             print(("🔥 High(10M+): %d gửi NGAY (full info)"):format(#normalHigh))
         end
 
+        -- gửi HIGH trùng SPECIAL sau HIGH_DELAY_SEC
         if #delayedHigh > 0 then
             local delayedCopy = {}
-            for i = 1, #delayedHigh do delayedCopy[i] = delayedHigh[i] end
+            for i = 1, #delayedHigh do
+                delayedCopy[i] = delayedHigh[i]
+            end
             print(("⏱️ High trùng SPECIAL sẽ gửi sau %ds (%d item)"):format(HIGH_DELAY_SEC, #delayedCopy))
             task.delay(HIGH_DELAY_SEC, function()
                 safeSend(webhook_high, makePayload(delayedCopy, 0x1A1AFF, placeId, jobId))
-                print(("✅ High trùng SPECIAL (delay %ds) đã gửi: %d item(s)"):format(HIGH_DELAY_SEC, #delayedCopy))
+                print(("✅ High trùng SPECIAL (delay %ds) đã gửi: %d item(s)")
+                    :format(HIGH_DELAY_SEC, #delayedCopy))
             end)
         end
     end
