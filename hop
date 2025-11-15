@@ -747,7 +747,7 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
--- 🚀 CT AUTO JOIN – 20-instance friendly
+-- 🚀 CT AUTO JOIN – catch job ≤3s, retry 1.5s
 repeat task.wait() until game:IsLoaded()
 task.wait(0.2)
 
@@ -756,36 +756,33 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
--- chọn http request
+-- HTTP chọn
 local http_request_impl = (syn and syn.request)
     or (typeof(http_request)=="function" and http_request)
     or (typeof(request)=="function" and request)
     or (http and http.request)
 
 if not http_request_impl then
-    warn("❌ Không có HTTP (syn.request/http_request/request/http.request).")
+    warn("❌ Không có HTTP.")
     return
 end
 
--- ======= cấu hình nhịp =======
-local AFTER_TP_WAIT = 0.2         -- nghỉ sau khi gọi Teleport
-local EMPTY_MIN = 0.12            -- khi jobId rỗng (min)
-local EMPTY_MAX = 0.15            -- khi jobId rỗng (max) + jitter để lệch pha
-local HTTP_ERR_WAIT = 0.18        -- khi HTTP lỗi
-local JSON_ERR_WAIT = 0.12        -- khi JSON lỗi
-local MIN_LOOP = 0.02             -- bảo vệ CPU
--- =============================
+-- ======= CONFIG NHỊP =======
+local FAST_POLL = 0.12      -- poll mỗi 0.12s để catch job nhanh
+local MAX_CATCH_TIME = 3.0  -- tối đa 3 giây để bắt job mới
+local RETRY_DELAY = 1.5     -- không có job → đợi 1.5s retry
+local AFTER_TP_WAIT = 0.2   -- nghỉ sau teleport
+-- ===========================
 
--- tên instance: tự suy ra cho mỗi tab (bạn có thể thay chuỗi này)
+-- tên instance
 local function getInstanceName()
-    -- ưu tiên tên người chơi + 2 số cuối UserId để khác nhau
     local uid = tostring(LocalPlayer.UserId or 0)
     local suffix = uid:sub(-2)
     return (LocalPlayer.Name .. "_" .. suffix)
 end
 local INSTANCE = getInstanceName()
 
--- dò cổng: quét từ 8080 → 8095 trên 127.0.0.1
+-- ======= GIỮ NGUYÊN CƠ CHẾ TÌM PORT 8080 → 8095 =======
 local function detectActivePort()
     local function tryPort(port)
         local url = ("http://127.0.0.1:%d/next?instance=%s"):format(port, INSTANCE)
@@ -798,108 +795,96 @@ local function detectActivePort()
             })
         end)
 
-        -- không có server lắng nghe / lỗi HTTP
-        if not ok or not res then
-            return nil
-        end
+        if not ok or not res then return nil end
+        if res.StatusCode ~= 200 then return nil end
+        if not res.Body or #res.Body == 0 then return nil end
+        if tostring(res.Body):lower():find("error") then return nil end
 
-        local code = tonumber(res.StatusCode) or 0
-        local body = res.Body
-
-        -- chỉ nhận port trả về 200 + body có nội dung và không chứa "error"
-        if code ~= 200 then
-            return nil
-        end
-        if type(body) ~= "string" or #body == 0 then
-            return nil
-        end
-        if body:lower():find("error") then
-            return nil
-        end
-
-        print(("[CT AutoJoin] Chọn port %d (StatusCode=%s)"):format(port, tostring(code)))
+        print("[CT AutoJoin] ✓ Port", port, "OK")
         return url
     end
 
-    -- QUÉT 8080 → 8095
     for port = 8080, 8095 do
-        local url = tryPort(port)
-        if url then
-            return url
-        end
+        local u = tryPort(port)
+        if u then return u end
         task.wait(0.02)
     end
 
-    -- fallback nếu không port nào ok
-    warn("⚠️ Không tìm thấy cổng nào trong 8080–8095, fallback 8080.")
+    warn("⚠ Không thấy port nào, fallback 8080")
     return ("http://127.0.0.1:%d/next?instance=%s"):format(8080, INSTANCE)
 end
+
 local HTTP_URL = detectActivePort()
-print(("[CT AutoJoin] START %s | instance=%s"):format(HTTP_URL, INSTANCE))
+print("[CT AutoJoin] START at", HTTP_URL, "instance =", INSTANCE)
 
 -- recent dedupe
 local RECENT_MAX = 400
 local recentQueue, recentSet = {}, {}
 local function pushRecent(jid)
     if not jid or jid=="" or recentSet[jid] then return end
-    table.insert(recentQueue, jid); recentSet[jid]=true
-    if #recentQueue>RECENT_MAX then
-        local old = table.remove(recentQueue,1); if old then recentSet[old]=nil end
+    table.insert(recentQueue, jid)
+    recentSet[jid] = true
+    if #recentQueue > RECENT_MAX then
+        local old = table.remove(recentQueue,1)
+        if old then recentSet[old] = nil end
     end
 end
 
--- lệch pha khởi động giữa các tab (stagger)
+-- lệch pha giữa các tab
 do
-    -- lệch 0.0–0.6s theo hash instance
     local h = 0
     for i=1,#INSTANCE do h = (h*131 + INSTANCE:byte(i)) % 997 end
-    local offset = (h % 600) / 1000  -- 0.000–0.600
+    local offset = (h % 600) / 1000
     task.wait(0.15 + offset)
 end
 
--- loop
+-- =========== LOOP CHUẨN YÊU CẦU (CATCH ≤3S, RETRY 1.5S) ===========
 task.spawn(function()
-    local last = tick()
-    local http_fail_backoff = 0.0
     while true do
-        -- min loop time
-        local dt = tick() - last
-        if dt < MIN_LOOP then task.wait(MIN_LOOP - dt) end
-        last = tick()
+        local startTime = tick()
+        local gotJob = false
 
-        local ok_req, response = pcall(function()
-            return http_request_impl({ Url = HTTP_URL, Method = "GET" })
-        end)
+        -- ⏱ Poll nhanh liên tục trong tối đa 3 giây
+        while tick() - startTime < MAX_CATCH_TIME do
+            local ok_req, response = pcall(function()
+                return http_request_impl({ Url = HTTP_URL, Method = "GET" })
+            end)
 
-        if not ok_req then
-            http_fail_backoff = math.min((http_fail_backoff==0 and 0.15 or http_fail_backoff*1.5), 1.2)
-            task.wait(HTTP_ERR_WAIT + http_fail_backoff + math.random()*0.05)
-        else
-            http_fail_backoff = 0
-            local body = response and response.Body
-            if type(body) ~= "string" or #body == 0 then
-                task.wait(HTTP_ERR_WAIT + math.random()*0.03)
-            else
-                local ok_json, data = pcall(function() return HttpService:JSONDecode(body) end)
-                if not ok_json or type(data) ~= "table" then
-                    task.wait(JSON_ERR_WAIT + math.random()*0.03)
-                else
+            if ok_req and response and response.Body and #response.Body > 0 then
+                local ok_json, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+
+                if ok_json and type(data) == "table" then
                     local jobId = tostring(data.jobId or "")
                     local placeId = tonumber(data.placeId) or game.PlaceId
-                    if jobId ~= "" and jobId ~= "null" and jobId ~= "nil" and not recentSet[jobId] then
+
+                    if jobId ~= "" 
+                    and jobId ~= "null"
+                    and jobId ~= "nil"
+                    and not recentSet[jobId] then
+
+                        gotJob = true
                         pushRecent(jobId)
-                        local ok_tp, err = pcall(function()
-                            TeleportService:TeleportToPlaceInstance(placeId, jobId, Players.LocalPlayer)
+                        print("🟢 JOIN:", jobId)
+
+                        pcall(function()
+                            TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
                         end)
-                        if not ok_tp then warn("⚠️ Teleport failed:", err) end
-                        task.wait(AFTER_TP_WAIT + math.random()*0.1)
-                    else
-                        -- khi không có job mới: lệch nhịp giữa tab
-                        local r = EMPTY_MIN + (math.random()*(EMPTY_MAX-EMPTY_MIN))
-                        task.wait(r)
+
+                        task.wait(AFTER_TP_WAIT)
+                        break
                     end
                 end
             end
+
+            -- không có job → poll nhanh tiếp
+            task.wait(FAST_POLL)
+        end
+
+        -- Nếu 3 giây vẫn không có job → retry sau 1.5s
+        if not gotJob then
+            task.wait(RETRY_DELAY)
         end
     end
 end)
