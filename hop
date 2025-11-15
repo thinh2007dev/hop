@@ -501,9 +501,9 @@ local function chunkList(list, maxPerChunk)
     return result
 end
 local lastJobIdSent = nil
-local INDEX_DELAY_SEC       = 3
-local HIGH_NORMAL_DELAY_SEC = 3
-local HIGH_SPECIAL_DELAY_SEC= 10
+local INDEX_DELAY_SEC       = 15
+local HIGH_NORMAL_DELAY_SEC = 15
+local HIGH_SPECIAL_DELAY_SEC= 20
 
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
@@ -579,7 +579,7 @@ local function sendWebhook(foundTargets)
     end
 
     ------------------------------------------------------
-    -- 🔵 INDEX (webhook_index): 10M+ → delay 3s, chỉ tên + tiền
+    -- 🔵 INDEX (webhook_index): 10M+ → delay 15s, chỉ tên + tiền
     ------------------------------------------------------
     if #groupIndex > 0 then
         local indexChunks = chunkList(groupIndex, 40)
@@ -634,7 +634,7 @@ local function sendWebhook(foundTargets)
         end)
     end
 
-    -- HIGH special (delay 10s)
+    -- HIGH special (delay 20s)
     if #groupHighSpecial > 0 then
         local specChunks = chunkList(groupHighSpecial, 30)
         print(string.format(
