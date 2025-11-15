@@ -749,7 +749,7 @@ task.spawn(function()
 end)
 -- 🚀 CT AUTO JOIN – 20-instance friendly
 repeat task.wait() until game:IsLoaded()
-task.wait(0.5)
+task.wait(0.2)
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -768,9 +768,9 @@ if not http_request_impl then
 end
 
 -- ======= cấu hình nhịp =======
-local AFTER_TP_WAIT = 0.5         -- nghỉ sau khi gọi Teleport
+local AFTER_TP_WAIT = 0.2         -- nghỉ sau khi gọi Teleport
 local EMPTY_MIN = 0.12            -- khi jobId rỗng (min)
-local EMPTY_MAX = 0.22            -- khi jobId rỗng (max) + jitter để lệch pha
+local EMPTY_MAX = 0.15            -- khi jobId rỗng (max) + jitter để lệch pha
 local HTTP_ERR_WAIT = 0.18        -- khi HTTP lỗi
 local JSON_ERR_WAIT = 0.12        -- khi JSON lỗi
 local MIN_LOOP = 0.02             -- bảo vệ CPU
