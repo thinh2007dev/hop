@@ -785,26 +785,55 @@ local function getInstanceName()
 end
 local INSTANCE = getInstanceName()
 
--- dò cổng: ưu tiên 8081, rồi 8085→8040
+-- dò cổng: quét từ 8080 → 8095 trên 127.0.0.1
 local function detectActivePort()
-    local function try(url)
-        local ok, res = pcall(function()
-            return http_request_impl({Url=url, Method="GET", Timeout=0.6})
-        end)
-        return ok and res and res.StatusCode==200 and res.Body and #res.Body>0 and not res.Body:find("error")
-    end
-    local base = "http://127.0.0.1:%d/next?instance="..INSTANCE
-    local first = base:format(8081)
-    if try(first) then return first end
-    for port=8085,8040,-1 do
-        local url = base:format(port)
-        if try(url) then return url end
-        task.wait(0.01)
-    end
-    warn("⚠️ Không thấy cổng, dùng 8080.")
-    return "http://127.0.0.1:8080/next?instance="..INSTANCE
-end
+    local function tryPort(port)
+        local url = ("http://127.0.0.1:%d/next?instance=%s"):format(port, INSTANCE)
 
+        local ok, res = pcall(function()
+            return http_request_impl({
+                Url = url,
+                Method = "GET",
+                Timeout = 0.6
+            })
+        end)
+
+        -- không có server lắng nghe / lỗi HTTP
+        if not ok or not res then
+            return nil
+        end
+
+        local code = tonumber(res.StatusCode) or 0
+        local body = res.Body
+
+        -- chỉ nhận port trả về 200 + body có nội dung và không chứa "error"
+        if code ~= 200 then
+            return nil
+        end
+        if type(body) ~= "string" or #body == 0 then
+            return nil
+        end
+        if body:lower():find("error") then
+            return nil
+        end
+
+        print(("[CT AutoJoin] Chọn port %d (StatusCode=%s)"):format(port, tostring(code)))
+        return url
+    end
+
+    -- QUÉT 8080 → 8095
+    for port = 8080, 8095 do
+        local url = tryPort(port)
+        if url then
+            return url
+        end
+        task.wait(0.02)
+    end
+
+    -- fallback nếu không port nào ok
+    warn("⚠️ Không tìm thấy cổng nào trong 8080–8095, fallback 8080.")
+    return ("http://127.0.0.1:%d/next?instance=%s"):format(8080, INSTANCE)
+end
 local HTTP_URL = detectActivePort()
 print(("[CT AutoJoin] START %s | instance=%s"):format(HTTP_URL, INSTANCE))
 
