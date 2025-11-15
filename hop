@@ -501,9 +501,9 @@ local function chunkList(list, maxPerChunk)
     return result
 end
 local lastJobIdSent = nil
-local INDEX_DELAY_SEC       = 15
-local HIGH_NORMAL_DELAY_SEC = 15
-local HIGH_SPECIAL_DELAY_SEC= 20
+local INDEX_DELAY_SEC       = 0
+local HIGH_NORMAL_DELAY_SEC = 0
+local HIGH_SPECIAL_DELAY_SEC= 0
 
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
