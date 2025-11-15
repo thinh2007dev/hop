@@ -281,7 +281,7 @@ task.spawn(function()
     end
 end)
 -- ==================================================
--- ⚙️ LOCAL TARGET CŨ (dùng cho isTarget + webhook SPECIAL/INDEX/HIGH/LOW)
+-- ⚙️ LOCAL TARGET CŨ (dùng cho isTarget + webhook)
 -- ==================================================
 local targets = {
     'Chipso and Queso','La Casa Boo','Tang Tang Keletang','Headless Horseman',
@@ -298,6 +298,7 @@ local targets = {
     'Yess My Examine','Las Tralaleritas','Job Job Job Sahur','Las Vaquitas Saturnitas','1x1x1x1','Guest 666',
     'Captiano Moby','La Taco Combinasion','Los Puggies','Los Spaghettis','Fragrama and Chocrama'
 }
+
 -- ==================================================
 -- ⚙️ HÀM CHUYỂN GENERATION → SỐ (triệu M)
 -- ==================================================
@@ -336,7 +337,7 @@ local function isTarget(name)
 end
 
 -- ==================================================
--- ⚙️ LOCAL TARGET SPECIAL (CHỈ DÙNG CHO HIGH DELAY 10s)
+-- ⚙️ LOCAL SPECIAL TARGET (chỉ dùng cho HIGH delay 10s)
 -- ==================================================
 local highSpecialTargets = {
     'Headless Horseman','Meowl','Dragon Cannelloni',
@@ -356,15 +357,7 @@ local function isHighSpecial(name)
 end
 
 -- ==================================================
--- ⚙️ SPECIAL CHO WEBHOOK SPECIAL
---    → dùng lại local targets cũ (10M+ & là target)
--- ==================================================
-local function isSpecial(name)
-    return isTarget(name)
-end
-
--- ==================================================
--- ⚙️ WEBHOOK LINKS
+-- ⚙️ WEBHOOK LINKS (NHƯ CŨ)
 -- ==================================================
 local webhook_low     = "https://discord.com/api/webhooks/1426862131856412692/J-zZnc1SmoilRJLLU7gACiwH2No_kUfywubRLkAU2XfsLdFAjgmolpTTCk6RbtSE8VJg"
 local webhook_high    = "https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy"
@@ -421,7 +414,7 @@ local function safeSend(url, payload)
 end
 
 -- ==================================================
--- ⚙️ EMBED FULL (low/high/special)
+-- ⚙️ EMBED FULL (low/high/special) - GIỮ NGUYÊN
 -- ==================================================
 local function makePayload(list, color, placeId, jobId)
     local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
@@ -461,7 +454,7 @@ local function makePayload(list, color, placeId, jobId)
 end
 
 -- ==================================================
--- ⚙️ EMBED INDEX (chỉ tên + tiền)
+-- ⚙️ EMBED INDEX (chỉ tên + tiền) - GIỮ NGUYÊN
 -- ==================================================
 local function makeIndexPayload(list)
     local lines = {}
@@ -507,13 +500,10 @@ local function chunkList(list, maxPerChunk)
 
     return result
 end
-
--- ==================================================
--- ⚙️ GỬI WEBHOOK CHÍNH (SPECIAL + INDEX + HIGH + LOW)
--- ==================================================
 local lastJobIdSent = nil
-local HIGH_DELAY_NORMAL_SEC  = 5   -- High thường delay 5s
-local HIGH_DELAY_SPECIAL_SEC = 10  -- High trùng highSpecialTargets delay 10s
+local INDEX_DELAY_SEC       = 3
+local HIGH_NORMAL_DELAY_SEC = 3
+local HIGH_SPECIAL_DELAY_SEC= 10
 
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
@@ -522,12 +512,11 @@ local function sendWebhook(foundTargets)
     if jobId == lastJobIdSent then return end
     lastJobIdSent = jobId
 
-    -- 4 nhóm chính
-    local groupLow            = {}
-    local groupIndex          = {}
-    local groupSpecial        = {} -- 10M+ & isSpecial
-    local highNormalDelayed   = {} -- 10M+ high thường (delay 5s)
-    local highSpecialDelayed  = {} -- 10M+ high trùng local target special (delay 10s)
+    local groupLow         = {}
+    local groupUltra       = {} -- ultra/special 10M+ gửi liền
+    local groupIndex       = {} -- 10M+ cho index & high
+    local groupHighNormal  = {} -- 10M+ không thuộc special target → delay 3s
+    local groupHighSpecial = {} -- 10M+ thuộc special target → delay 10s
 
     --------------------------------------------------
     -- LỌC TARGET THEO GENERATION
@@ -536,7 +525,6 @@ local function sendWebhook(foundTargets)
         local name = t.name or "Unknown"
         local gen  = t.generation or "N/A"
 
-        -- chỉ ăn những con nằm trong local targets
         if not isTarget(name) then
             continue
         end
@@ -547,72 +535,72 @@ local function sendWebhook(foundTargets)
         end
 
         if val >= 10 then
-            -- record dùng chung cho mọi nhóm 10M+
             local rec = {name = name, generation = gen}
 
-            -- INDEX: 10M+ không giới hạn
+            -- ULTRA: 10M+ không giới hạn, gửi liền qua webhook_special
+            table.insert(groupUltra, rec)
+
+            -- INDEX + HIGH: chung 1 tập
             table.insert(groupIndex, rec)
 
-            -- SPECIAL: 10M+ và là special (dùng local targets cũ / isSpecial)
-            if isSpecial(name) then
-                table.insert(groupSpecial, rec)
-            end
-
-            -- HIGH: 10M+ chia 2 loại delay
+            -- HIGH chia nhỏ để delay khác nhau
             if isHighSpecial(name) then
-                table.insert(highSpecialDelayed, rec)   -- trùng local target special → 10s
+                table.insert(groupHighSpecial, rec)   -- delay 10s
             else
-                table.insert(highNormalDelayed, rec)    -- còn lại → 5s
+                table.insert(groupHighNormal, rec)    -- delay 3s
             end
         elseif val >= 1 then
-            -- LOW: 1–9M
             table.insert(groupLow, {name = name, generation = gen})
         end
     end
 
-    if #groupLow == 0 and #groupIndex == 0 and #groupSpecial == 0
-       and #highNormalDelayed == 0 and #highSpecialDelayed == 0 then
+    if #groupLow == 0 and #groupUltra == 0 and #groupIndex == 0 then
         print("ℹ️ Không có target hợp lệ để gửi webhook.")
         return
     end
 
     print(string.format(
-        "📤 Bắt đầu gửi webhook ... Low=%d, Index=%d, Special=%d, HighNorm=%d, HighSpec=%d",
-        #groupLow, #groupIndex, #groupSpecial, #highNormalDelayed, #highSpecialDelayed
+        "📤 Bắt đầu gửi webhook ... Low=%d, Ultra=%d, Index=%d, HighNorm=%d, HighSpec=%d",
+        #groupLow, #groupUltra, #groupIndex, #groupHighNormal, #groupHighSpecial
     ))
 
     ------------------------------------------------------
-    -- 🟡 SPECIAL: 10M+ dùng local targets cũ, GỬI LIỀN, CÓ CHUNK
+    -- 🟡 ULTRA (webhook_special): 10M+ gửi LIỀN (full embed)
     ------------------------------------------------------
-    if #groupSpecial > 0 then
-        local specialChunks = chunkList(groupSpecial, 30) -- 30 con / embed
-
-        for ci, chunk in ipairs(specialChunks) do
+    if #groupUltra > 0 then
+        local ultraChunks = chunkList(groupUltra, 30)
+        for ci, chunk in ipairs(ultraChunks) do
             safeSend(webhook_special, makePayload(chunk, 0xFFD700, placeId, jobId))
             print(string.format(
-                "🚨 SPECIAL (10M+): chunk %d/%d, %d item(s) gửi NGAY",
-                ci, #specialChunks, #chunk
+                "🚨 ULTRA 10M+: chunk %d/%d, %d item(s) gửi NGAY",
+                ci, #ultraChunks, #chunk
             ))
         end
     end
 
     ------------------------------------------------------
-    -- 🔵 INDEX: 10M+ → gửi NGAY (chỉ tên + tiền, CHUNK)
+    -- 🔵 INDEX (webhook_index): 10M+ → delay 3s, chỉ tên + tiền
     ------------------------------------------------------
     if #groupIndex > 0 then
-        local indexChunks = chunkList(groupIndex, 40) -- 40 con / embed
+        local indexChunks = chunkList(groupIndex, 40)
+        print(string.format(
+            "⏱️ Index(10M+): sẽ gửi sau %ds (%d item, %d chunk)",
+            INDEX_DELAY_SEC, #groupIndex, #indexChunks
+        ))
 
-        for ci, chunk in ipairs(indexChunks) do
-            safeSend(webhook_index, makeIndexPayload(chunk))
-            print(string.format(
-                "📘 Index(10M+): chunk %d/%d, %d item(s) gửi NGAY",
-                ci, #indexChunks, #chunk
-            ))
-        end
+        task.delay(INDEX_DELAY_SEC, function()
+            for ci, chunk in ipairs(indexChunks) do
+                safeSend(webhook_index, makeIndexPayload(chunk))
+                print(string.format(
+                    "✅ Index(10M+): chunk %d/%d, %d item(s) đã gửi (delay %ds)",
+                    ci, #indexChunks, #chunk, INDEX_DELAY_SEC
+                ))
+            end
+        end)
     end
 
     ------------------------------------------------------
-    -- 🟢 LOW: 1–9M → giữ nguyên, gửi NGAY full info
+    -- 🟢 LOW (webhook_low): 1–9M → gửi NGAY full info
     ------------------------------------------------------
     if #groupLow > 0 then
         safeSend(webhook_low, makePayload(groupLow, 0x00FF00, placeId, jobId))
@@ -623,43 +611,43 @@ local function sendWebhook(foundTargets)
     end
 
     ------------------------------------------------------
-    -- 🔴 HIGH: 10M+ → delay 5s hoặc 10s, cũng CHUNK
-    --   • High thường (KHÔNG nằm trong highSpecialTargets) → delay 5s
-    --   • High trùng local target special (highSpecialTargets) → delay 10s
+    -- 🔴 HIGH (webhook_high): 10M+ giống Index
+    --   • normal: delay 3s
+    --   • trong highSpecialTargets: delay 10s
     ------------------------------------------------------
-    -- HIGH thường: delay 5s
-    if #highNormalDelayed > 0 then
-        local chunksNormal = chunkList(highNormalDelayed, 30)
+    -- HIGH normal (delay 3s)
+    if #groupHighNormal > 0 then
+        local normChunks = chunkList(groupHighNormal, 30)
         print(string.format(
-            "⏱️ High(10M+) thường sẽ gửi sau %ds (%d item, %d chunk)",
-            HIGH_DELAY_NORMAL_SEC, #highNormalDelayed, #chunksNormal
+            "⏱️ High NORMAL(10M+): sẽ gửi sau %ds (%d item, %d chunk)",
+            HIGH_NORMAL_DELAY_SEC, #groupHighNormal, #normChunks
         ))
 
-        task.delay(HIGH_DELAY_NORMAL_SEC, function()
-            for ci, chunk in ipairs(chunksNormal) do
+        task.delay(HIGH_NORMAL_DELAY_SEC, function()
+            for ci, chunk in ipairs(normChunks) do
                 safeSend(webhook_high, makePayload(chunk, 0x1A1AFF, placeId, jobId))
                 print(string.format(
-                    "✅ High thường (chunk %d/%d, %d item) đã gửi (delay %ds)",
-                    ci, #chunksNormal, #chunk, HIGH_DELAY_NORMAL_SEC
+                    "✅ High NORMAL: chunk %d/%d, %d item(s) đã gửi (delay %ds)",
+                    ci, #normChunks, #chunk, HIGH_NORMAL_DELAY_SEC
                 ))
             end
         end)
     end
 
-    -- HIGH trùng local target special: delay 10s
-    if #highSpecialDelayed > 0 then
-        local chunksSpecial = chunkList(highSpecialDelayed, 30)
+    -- HIGH special (delay 10s)
+    if #groupHighSpecial > 0 then
+        local specChunks = chunkList(groupHighSpecial, 30)
         print(string.format(
-            "⏱️ High trùng LOCAL TARGET SPECIAL sẽ gửi sau %ds (%d item, %d chunk)",
-            HIGH_DELAY_SPECIAL_SEC, #highSpecialDelayed, #chunksSpecial
+            "⏱️ High SPECIAL(10M+): sẽ gửi sau %ds (%d item, %d chunk)",
+            HIGH_SPECIAL_DELAY_SEC, #groupHighSpecial, #specChunks
         ))
 
-        task.delay(HIGH_DELAY_SPECIAL_SEC, function()
-            for ci, chunk in ipairs(chunksSpecial) do
+        task.delay(HIGH_SPECIAL_DELAY_SEC, function()
+            for ci, chunk in ipairs(specChunks) do
                 safeSend(webhook_high, makePayload(chunk, 0x1A1AFF, placeId, jobId))
                 print(string.format(
-                    "✅ High trùng LOCAL TARGET SPECIAL (chunk %d/%d, %d item) đã gửi (delay %ds)",
-                    ci, #chunksSpecial, #chunk, HIGH_DELAY_SPECIAL_SEC
+                    "✅ High SPECIAL: chunk %d/%d, %d item(s) đã gửi (delay %ds)",
+                    ci, #specChunks, #chunk, HIGH_SPECIAL_DELAY_SEC
                 ))
             end
         end)
