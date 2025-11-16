@@ -747,19 +747,20 @@ task.spawn(function()
         if not ok2 then warn('⚠️ Scan loop error:', err) end
     end
 end)
--- 🚀 CT AUTO JOIN – poll 2s, retry 1s (dùng cố định port 8080)
+-- 🚀 CT AUTO JOIN – poll 2s, retry 1s (scan 8080–8095, quét nhanh)
 repeat task.wait() until game:IsLoaded()
-task.wait(0.2)
+task.wait(0.1)
 
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
+local Players         = game:GetService("Players")
+local HttpService     = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer     = Players.LocalPlayer
 
--- HTTP chọn
-local http_request_impl = (syn and syn.request)
-    or (typeof(http_request)=="function" and http_request)
-    or (typeof(request)=="function" and request)
+-- 🔧 HTTP chọn
+local http_request_impl =
+    (syn and syn.request)
+    or (typeof(http_request) == "function" and http_request)
+    or (typeof(request) == "function" and request)
     or (http and http.request)
 
 if not http_request_impl then
@@ -767,46 +768,99 @@ if not http_request_impl then
     return
 end
 
--- ====== NEW TIMING ======
-local POLL_INTERVAL  = 3.0      -- 2 giây lấy API 1 lần (khi có job)
-local RETRY_INTERVAL = 2.0      -- nếu không có job → đợi 1 giây rồi lấy lại
+-- ====== TIMING ======
+local POLL_INTERVAL  = 2.0   -- có job → 2s hỏi lần tiếp theo
+local RETRY_INTERVAL = 1.0   -- không job → 1s retry
 local AFTER_TP_WAIT  = 0.15
--- ========================
+-- ====================
 
--- instance name (để phân biệt log nếu cần)
+-- instance name để lệch pha giữa acc
 local function getInstanceName()
     local uid = tostring(LocalPlayer.UserId or 0)
     return LocalPlayer.Name .. "_" .. uid:sub(-2)
 end
+
 local INSTANCE = getInstanceName()
 
--- DÙNG CỐ ĐỊNH PORT 8080
--- ⚠️ Bên Python phải PORT = 8080
-local HTTP_URL = ("http://127.0.0.1:8080/next?instance=%s"):format(INSTANCE)
+---------------------------------------------------
+-- 🔍 TÌM PORT 8080–8095 CÓ PYTHON (chạy song song)
+---------------------------------------------------
+local HTTP_URL = nil
+
+local function detectActivePort()
+    local found = false
+
+    for p = 8080, 8095 do
+        task.spawn(function()
+            if found or HTTP_URL then return end
+
+            -- test bằng /status cho nhẹ, không ăn job
+            local statusUrl = ("http://127.0.0.1:%d/status"):format(p)
+
+            local ok, res = pcall(function()
+                return http_request_impl({
+                    Url    = statusUrl,
+                    Method = "GET",
+                    Timeout = 0.3,       -- đủ nhanh nhưng không quá gắt
+                })
+            end)
+
+            if not ok or not res then return end
+            if res.StatusCode ~= 200 or not res.Body or #res.Body == 0 then return end
+
+            -- thử decode JSON xem có đúng format server mình không
+            local ok_json = pcall(function()
+                HttpService:JSONDecode(res.Body)
+            end)
+            if not ok_json then return end
+
+            if not found and not HTTP_URL then
+                found   = true
+                HTTP_URL = ("http://127.0.0.1:%d/next?instance=%s"):format(p, INSTANCE)
+                print("[CT AutoJoin] ✓ Found port", p)
+            end
+        end)
+    end
+
+    -- đợi tối đa ~3s cho đến khi có port nào trả về
+    local t0 = tick()
+    while not HTTP_URL and (tick() - t0) < 3 do
+        task.wait(0.02)
+    end
+
+    if not HTTP_URL then
+        -- fallback 8080 cho chắc (trường hợp Python chưa chạy kịp,…)
+        HTTP_URL = ("http://127.0.0.1:8080/next?instance=%s"):format(INSTANCE)
+        warn("[CT AutoJoin] ⚠ Không detect được port, dùng fallback 8080.")
+    end
+end
+
+detectActivePort()
 print("[CT AutoJoin] START at", HTTP_URL)
 
--- dedupe job
+-- ================== DEDUPE JOB ==================
 local recentSet = {}
+
 local function pushRecent(jobId)
     recentSet[jobId] = true
 end
 
--- lệch pha nhẹ theo INSTANCE
+-- lệch pha 0–0.3s để nhiều acc không bắn cùng lúc
 do
     local h = 0
     for i = 1, #INSTANCE do
-        h = (h*131 + INSTANCE:byte(i)) % 997
+        h = (h * 131 + INSTANCE:byte(i)) % 997
     end
     local offset = (h % 300) / 1000
     task.wait(0.1 + offset)
 end
 
--- ================== MAIN LOOP (2s poll, 1s retry) ==================
+-- ================== MAIN LOOP (2s / 1s) ==================
 task.spawn(function()
     while true do
         local ok_req, response = pcall(function()
             return http_request_impl({
-                Url = HTTP_URL,
+                Url    = HTTP_URL,
                 Method = "GET"
             })
         end)
@@ -838,9 +892,9 @@ task.spawn(function()
         end
 
         if jobFound then
-            task.wait(POLL_INTERVAL)   -- có job → chờ 2s rồi hỏi job tiếp
+            task.wait(POLL_INTERVAL)   -- có job → 2s nữa hỏi tiếp
         else
-            task.wait(RETRY_INTERVAL)  -- không job → 1s hỏi lại
+            task.wait(RETRY_INTERVAL)  -- không job → 1s nữa hỏi lại
         end
     end
 end)
