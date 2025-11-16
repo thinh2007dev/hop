@@ -749,7 +749,7 @@ task.spawn(function()
 end)
 -- 🚀 CT AUTO JOIN – poll 2s, retry 1s (scan 8080–8095, quét nhanh)
 repeat task.wait() until game:IsLoaded()
-task.wait(0.1)
+task.wait(0.5)
 
 local Players         = game:GetService("Players")
 local HttpService     = game:GetService("HttpService")
@@ -769,9 +769,9 @@ if not http_request_impl then
 end
 
 -- ====== TIMING ======
-local POLL_INTERVAL  = 2.0   -- có job → 2s hỏi lần tiếp theo
-local RETRY_INTERVAL = 1.0   -- không job → 1s retry
-local AFTER_TP_WAIT  = 0.15
+local POLL_INTERVAL  = 4.0   -- có job → 2s hỏi lần tiếp theo
+local RETRY_INTERVAL = 2.0   -- không job → 1s retry
+local AFTER_TP_WAIT  = 0.3
 -- ====================
 
 -- instance name để lệch pha giữa acc
