@@ -337,7 +337,7 @@ local function isTarget(name)
 end
 
 -- ==================================================
--- ⚙️ LOCAL SPECIAL TARGET (chỉ dùng cho HIGH delay 10s)
+-- ⚙️ LOCAL SPECIAL TARGET (chỉ dùng cho HIGH)
 -- ==================================================
 local highSpecialTargets = {
     'Headless Horseman','Meowl','Dragon Cannelloni',
@@ -357,7 +357,7 @@ local function isHighSpecial(name)
 end
 
 -- ==================================================
--- ⚙️ WEBHOOK LINKS (NHƯ CŨ)
+-- ⚙️ WEBHOOK LINKS
 -- ==================================================
 local webhook_low     = "https://discord.com/api/webhooks/1426862131856412692/J-zZnc1SmoilRJLLU7gACiwH2No_kUfywubRLkAU2XfsLdFAjgmolpTTCk6RbtSE8VJg"
 local webhook_high    = "https://discord.com/api/webhooks/1439491045858611311/GQ4zemaCxssxd2BC203Mrlzcb6PgtdZRaYquF8QOzEuVRpEoR1Fl1bSCRXj2L3fNWXvM"
@@ -367,6 +367,9 @@ local webhook_special = "https://discord.com/api/webhooks/1437032661188218932/CW
 -- ==================================================
 -- ⚙️ HTTP REQUEST (tương thích executor)
 -- ==================================================
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
 local http_request_impl = nil
 if typeof(syn) == "table" and typeof(syn.request) == "function" then
     http_request_impl = syn.request
@@ -379,48 +382,57 @@ elseif typeof(http) == "table" and typeof(http.request) == "function" then
 end
 
 local sendQueue, sending = {}, false
+
 local function processQueue()
     if sending then return end
     sending = true
+
     while #sendQueue > 0 do
         local item = table.remove(sendQueue, 1)
         if not http_request_impl then
             warn("❌ Không có http_request_impl, bỏ qua gửi Discord.")
             break
         end
+
         local ok, res = pcall(function()
             return http_request_impl({
                 Url = item.url,
                 Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
+                Headers = { ["Content-Type"] = "application/json" },
                 Body = HttpService:JSONEncode(item.payload),
             })
         end)
+
         if ok and res and (res.StatusCode == 204 or res.StatusCode == 200) then
             print("📤 Webhook OK →", item.url)
         else
-            warn("⚠️ Webhook lỗi:", res and res.StatusCode, res and res.Body)
+            warn("⚠️ Webhook lỗi:", item.url, res and res.StatusCode, res and res.Body)
+            -- retry nhẹ
             table.insert(sendQueue, item)
             task.wait(2)
         end
+
         task.wait(0.5)
     end
+
     sending = false
 end
 
 local function safeSend(url, payload)
-    table.insert(sendQueue, {url=url, payload=payload})
+    table.insert(sendQueue, { url = url, payload = payload })
     task.spawn(processQueue)
 end
 
 -- ==================================================
--- ⚙️ EMBED FULL (low/high/special) - GIỮ NGUYÊN
+-- ⚙️ EMBED FULL (low/high/special)
 -- ==================================================
 local function makePayload(list, color, placeId, jobId)
     local players = tostring(#Players:GetPlayers()).."/"..tostring(Players.MaxPlayers)
+
     local lines = {}
     table.insert(lines, ("👥 Players: %s"):format(players))
     table.insert(lines, "🏷️ Name              💰 Money/s")
+
     local COLUMN_POS = 22
     for _, t in ipairs(list) do
         local name = t.name or "Unknown"
@@ -431,34 +443,38 @@ local function makePayload(list, color, placeId, jobId)
         local pad = math.max(0, COLUMN_POS - utf8.len(name))
         table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
     end
+
     local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
 
     local joinLink = ("🌐 [**JOIN SERVER HERE**](https://chillihub1.github.io/chillihub-joiner/?placeId=%s&gameInstanceId=%s)")
         :format(placeId, jobId)
+
     local joinScript = string.format(
         "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(%s, '%s', game.Players.LocalPlayer)\n```",
         placeId, jobId
     )
+
     local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
     return {
-        embeds = {{
-            author = {name = "Brainrot Notify | Grape Hub"},
+        embeds = { {
+            author = { name = "Brainrot Notify | Grape Hub" },
             color  = color or 0x000000,
             description = tableBlock ..
                 "\n🆔 **Job ID (PC):** `" .. jobId .. "`\n" ..
                 joinLink .. "\n\n📜 **Join Script:**\n" .. joinScript,
-            footer = {text = footerTime},
-        }}
+            footer = { text = footerTime },
+        } }
     }
 end
 
 -- ==================================================
--- ⚙️ EMBED INDEX (chỉ tên + tiền) - GIỮ NGUYÊN
+-- ⚙️ EMBED INDEX (chỉ tên + tiền)
 -- ==================================================
 local function makeIndexPayload(list)
     local lines = {}
     table.insert(lines, "🏷️ Name              💰 Money/s")
+
     local COLUMN_POS = 22
     for _, t in ipairs(list) do
         local name = t.name or "Unknown"
@@ -469,21 +485,22 @@ local function makeIndexPayload(list)
         local pad = math.max(0, COLUMN_POS - utf8.len(name))
         table.insert(lines, string.format("%s%s%s", name, string.rep(" ", pad), gen))
     end
+
     local tableBlock = "```\n" .. table.concat(lines, "\n") .. "\n```"
     local footerTime = ("Made by Grape Hub | Hôm nay lúc %s:%s"):format(os.date("%H"), os.date("%M"))
 
     return {
-        embeds = {{
-            author = {name = "Brainrot Notify | Grape Hub"},
+        embeds = { {
+            author = { name = "Brainrot Notify | Grape Hub" },
             color  = 0x000000,
             description = tableBlock,
-            footer = {text = footerTime},
-        }}
+            footer = { text = footerTime },
+        } }
     }
 end
 
 -- ==================================================
--- ⚙️ HÀM CHIA LIST THÀNH NHIỀU CHUNK (tránh embed bị cắt)
+-- ⚙️ HÀM CHIA LIST THÀNH NHIỀU CHUNK
 -- ==================================================
 local function chunkList(list, maxPerChunk)
     local result = {}
@@ -500,16 +517,41 @@ local function chunkList(list, maxPerChunk)
 
     return result
 end
-local lastJobIdSent = nil
 
--- ✅ Delay từng loại webhook (giây) – mặc định = 0 là gửi NGAY
+-- ==================================================
+-- ⚙️ DEDUPE THEO TỪNG TARGET / JOB
+-- ==================================================
+local reportedTargets = {}  -- [jobId] = { ["Name|Gen"] = true }
+
+local function markReported(jobId, name, generation)
+    jobId = tostring(jobId or "0")
+    name = tostring(name or "Unknown")
+    generation = tostring(generation or "N/A")
+
+    local perJob = reportedTargets[jobId]
+    if not perJob then
+        perJob = {}
+        reportedTargets[jobId] = perJob
+    end
+
+    local key = name .. "|" .. generation
+    if perJob[key] then
+        return false
+    end
+
+    perJob[key] = true
+    return true
+end
+
+-- ==================================================
+-- ⚙️ DELAY CÁC WEBHOOK (0 = gửi ngay)
+-- ==================================================
 local LOW_DELAY_SEC          = 0   -- 1–9M  → webhook_low
 local INDEX_DELAY_SEC        = 0   -- 10M+  → webhook_index
 local HIGH_NORMAL_DELAY_SEC  = 0   -- 10M+  → webhook_high (không special)
-local HIGH_SPECIAL_DELAY_SEC = 5  -- 10M+  → webhook_high (special)
+local HIGH_SPECIAL_DELAY_SEC = 0   -- 10M+  → webhook_high (special)
 local ULTRA_DELAY_SEC        = 0   -- 10M+  → webhook_special (ultra)
 
--- helper gửi có/không delay
 local function sendDelayed(delay, fn)
     if delay and delay > 0 then
         task.delay(delay, fn)
@@ -518,18 +560,19 @@ local function sendDelayed(delay, fn)
     end
 end
 
+-- ==================================================
+-- ⚙️ GỬI WEBHOOK
+-- ==================================================
 local function sendWebhook(foundTargets)
     if not foundTargets or #foundTargets == 0 then return end
 
     local placeId, jobId = game.PlaceId, game.JobId
-    if jobId == lastJobIdSent then return end
-    lastJobIdSent = jobId
 
     local groupLow         = {}
-    local groupUltra       = {} -- ultra/special 10M+
-    local groupIndex       = {} -- 10M+ cho index & high
-    local groupHighNormal  = {} -- 10M+ không thuộc special target
-    local groupHighSpecial = {} -- 10M+ thuộc special target
+    local groupUltra       = {}
+    local groupIndex       = {}
+    local groupHighNormal  = {}
+    local groupHighSpecial = {}
 
     --------------------------------------------------
     -- LỌC TARGET THEO GENERATION
@@ -542,13 +585,19 @@ local function sendWebhook(foundTargets)
             continue
         end
 
+        -- dedupe theo từng con trong mỗi job
+        if not markReported(jobId, name, gen) then
+            -- đã gửi con này trong job này rồi
+            continue
+        end
+
         local val = parseGeneration(gen)
         if val <= 0 then
             continue
         end
 
         if val >= 10 then
-            local rec = {name = name, generation = gen}
+            local rec = { name = name, generation = gen }
 
             -- ULTRA: 10M+ → webhook_special
             table.insert(groupUltra, rec)
@@ -556,14 +605,13 @@ local function sendWebhook(foundTargets)
             -- INDEX + HIGH: chung 1 tập gốc
             table.insert(groupIndex, rec)
 
-            -- HIGH chia nhỏ để delay khác nhau
             if isHighSpecial(name) then
                 table.insert(groupHighSpecial, rec)
             else
                 table.insert(groupHighNormal, rec)
             end
         elseif val >= 1 then
-            table.insert(groupLow, {name = name, generation = gen})
+            table.insert(groupLow, { name = name, generation = gen })
         end
     end
 
@@ -578,7 +626,7 @@ local function sendWebhook(foundTargets)
     ))
 
     ------------------------------------------------------
-    -- 🟡 ULTRA (webhook_special): 10M+ (full embed)
+    -- 🟡 ULTRA (webhook_special): 10M+ full embed
     ------------------------------------------------------
     if #groupUltra > 0 then
         local ultraChunks = chunkList(groupUltra, 30)
@@ -595,7 +643,7 @@ local function sendWebhook(foundTargets)
     end
 
     ------------------------------------------------------
-    -- 🔵 INDEX (webhook_index): 10M+ → chỉ tên + tiền
+    -- 🔵 INDEX (webhook_index): 10M+ bảng tên + tiền
     ------------------------------------------------------
     if #groupIndex > 0 then
         local indexChunks = chunkList(groupIndex, 40)
@@ -616,7 +664,7 @@ local function sendWebhook(foundTargets)
     end
 
     ------------------------------------------------------
-    -- 🟢 LOW (webhook_low): 1–9M → full info
+    -- 🟢 LOW (webhook_low): 1–9M full info
     ------------------------------------------------------
     if #groupLow > 0 then
         local count = #groupLow
@@ -671,6 +719,7 @@ local function sendWebhook(foundTargets)
         end)
     end
 end
+
 -- ==================================================
 -- CHECK TARGETS + LOOP (quét mỗi 1s)
 -- ==================================================
