@@ -791,7 +791,7 @@ print("🎯 CT_WhiteScanner_V2 đang chạy... (quét mỗi 1s)")
 -- STARTUP: đợi map load billboard, retry 1s nếu chưa có
 task.spawn(function()
     print("🕓 Đợi map load Billboard... (1s)")
-    task.wait(1)
+    task.wait(2)
 
     local initialTargets = checkTargets()
     if #initialTargets > 0 then
@@ -802,10 +802,10 @@ task.spawn(function()
         task.delay(1, function()
             local retry = checkTargets()
             if #retry > 0 then
-                print("🔁 Gửi lại webhook sau 1s (" .. #retry .. " targets)")
+                print("🔁 Gửi lại webhook sau 2s (" .. #retry .. " targets)")
                 sendWebhook(retry)
             else
-                print("⌛ Retry 1s: vẫn chưa có target.")
+                print("⌛ Retry 2s: vẫn chưa có target.")
             end
         end)
     end
@@ -827,7 +827,7 @@ task.spawn(function()
 end)
 -- 🚀 CT AUTO JOIN – poll 2s, retry 1s (scan 8080–8095, quét nhanh)
 repeat task.wait() until game:IsLoaded()
-task.wait(0.2)
+task.wait(0.4)
 
 local Players         = game:GetService("Players")
 local HttpService     = game:GetService("HttpService")
@@ -847,9 +847,9 @@ if not http_request_impl then
 end
 
 -- ====== TIMING ======
-local POLL_INTERVAL  = 3.0   -- có job → 2s hỏi lần tiếp theo
-local RETRY_INTERVAL = 2.0   -- không job → 1s retry
-local AFTER_TP_WAIT  = 0.3
+local POLL_INTERVAL  = 4.0   -- có job → 2s hỏi lần tiếp theo
+local RETRY_INTERVAL = 3.0   -- không job → 1s retry
+local AFTER_TP_WAIT  = 0.5
 -- ====================
 
 -- instance name để lệch pha giữa acc
