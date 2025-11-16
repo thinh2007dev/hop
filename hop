@@ -739,7 +739,7 @@ end)
 
 -- Loop quét đều đặn
 task.spawn(function()
-    while task.wait(2) do
+    while task.wait(1) do
         local ok2, err = pcall(function()
             local t = checkTargets()
             if #t > 0 then sendWebhook(t) end
@@ -769,9 +769,9 @@ if not http_request_impl then
 end
 
 -- ====== TIMING ======
-local POLL_INTERVAL  = 3.0   -- có job → 2s hỏi lần tiếp theo
+local POLL_INTERVAL  = 4.0   -- có job → 2s hỏi lần tiếp theo
 local RETRY_INTERVAL = 2.0   -- không job → 1s retry
-local AFTER_TP_WAIT  = 0.2
+local AFTER_TP_WAIT  = 0.3
 -- ====================
 
 -- instance name để lệch pha giữa acc
