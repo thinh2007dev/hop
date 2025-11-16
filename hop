@@ -360,7 +360,7 @@ end
 -- ⚙️ WEBHOOK LINKS (NHƯ CŨ)
 -- ==================================================
 local webhook_low     = "https://discord.com/api/webhooks/1426862131856412692/J-zZnc1SmoilRJLLU7gACiwH2No_kUfywubRLkAU2XfsLdFAjgmolpTTCk6RbtSE8VJg"
-local webhook_high    = "https://discord.com/api/webhooks/1426864245143900202/bnRk09C0FuWUKrsx6HFakrgl5UC6ihPHWIrxRknE4VKDH7z-PAzWUvcLXrDwL4LsO9Yy"
+local webhook_high    = "https://discord.com/api/webhooks/1439491045858611311/GQ4zemaCxssxd2BC203Mrlzcb6PgtdZRaYquF8QOzEuVRpEoR1Fl1bSCRXj2L3fNWXvM"
 local webhook_index   = "https://discord.com/api/webhooks/1437032441226203277/qvgc98yhyfH1SjZuE086LbabJV7He3ZO84Ve6US143l9OHxbwRfAAPqN97SLSZokMSPY"
 local webhook_special = "https://discord.com/api/webhooks/1437032661188218932/CWZrxOaTlBJUSmkcPkFUHw_deJ9XaDjWsV8FGd8KN8NFZni7-GnCA2Yeap6fCAbdx1nE"
 
