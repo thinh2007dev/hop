@@ -788,26 +788,43 @@ end
 
 print("🎯 CT_WhiteScanner_V2 đang chạy... (quét mỗi 1s)")
 
--- STARTUP: đợi map load billboard, retry 1s nếu chưa có
+-- 🚀 STARTUP TURBO: scan LIỀN khi vào, 0.1s/lần trong 3s đầu
 task.spawn(function()
-    print("🕓 Đợi map load Billboard... (1s)")
-    task.wait(2)
+    print("⚡ Turbo start: scan ngay khi vào game (0.1s/lần trong 3s đầu)...")
 
-    local initialTargets = checkTargets()
-    if #initialTargets > 0 then
-        print("✅ Đã tìm thấy " .. #initialTargets .. " target, gửi ngay!")
-        sendWebhook(initialTargets)
-    else
-        print("⌛ Chưa phát hiện target nào, retry sau 1s...")
-        task.delay(1, function()
-            local retry = checkTargets()
-            if #retry > 0 then
-                print("🔁 Gửi lại webhook sau 2s (" .. #retry .. " targets)")
-                sendWebhook(retry)
-            else
-                print("⌛ Retry 2s: vẫn chưa có target.")
+    local start = tick()
+    local sentFirst = false
+
+    -- Trong 3 giây đầu: quét rất nhanh để bắt con càng sớm càng tốt
+    while tick() - start < 3 do
+        local initialTargets = checkTargets()
+        if #initialTargets > 0 then
+            print("✅ Lần đầu đã tìm thấy " .. #initialTargets .. " target, GỬI NGAY!")
+            sendWebhook(initialTargets)
+            sentFirst = true
+            break
+        end
+
+        task.wait(0.1) -- 100ms quét lại một lần trong giai đoạn turbo
+    end
+
+    if not sentFirst then
+        print("⌛ Turbo start không thấy target nào, để loop mỗi 1s xử lý tiếp.")
+    end
+end)
+
+-- 🔁 Loop quét đều đặn mỗi 1s (giữ nguyên logic cũ)
+task.spawn(function()
+    while task.wait(1) do
+        local ok2, err = pcall(function()
+            local t = checkTargets()
+            if #t > 0 then
+                sendWebhook(t)
             end
         end)
+        if not ok2 then
+            warn("⚠️ Scan loop error:", err)
+        end
     end
 end)
 
