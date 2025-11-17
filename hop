@@ -847,9 +847,11 @@ if not http_request_impl then
 end
 
 -- ====== TIMING ======
-local POLL_INTERVAL  = 3.0   -- có job → 2s hỏi lần tiếp theo
-local RETRY_INTERVAL = 3.0   -- không job → 1s retry
+local POLL_INTERVAL  = 3.0   -- có job → 3s hỏi lần tiếp theo
+local RETRY_INTERVAL = 3.0   -- không job → 3s retry
 local AFTER_TP_WAIT  = 0.4
+-- delay trước khi BẮT ĐẦU nhận job từ port
+local START_DELAY    = 3.0   -- ⬅️ bạn chỉnh số này nếu muốn lâu hơn / nhanh hơn
 -- ====================
 
 -- instance name để lệch pha giữa acc
@@ -877,8 +879,8 @@ local function detectActivePort()
 
             local ok, res = pcall(function()
                 return http_request_impl({
-                    Url    = statusUrl,
-                    Method = "GET",
+                    Url     = statusUrl,
+                    Method  = "GET",
                     Timeout = 0.3,       -- đủ nhanh nhưng không quá gắt
                 })
             end)
@@ -933,7 +935,11 @@ do
     task.wait(0.3 + offset)
 end
 
--- ================== MAIN LOOP (2s / 1s) ==================
+-- ⏱️ DELAY TRƯỚC KHI BẮT ĐẦU NHẬN JOB TỪ PYTHON
+print(string.format("[CT AutoJoin] ⏱ Chờ %.1fs rồi mới bắt đầu nhận job từ port...", START_DELAY))
+task.wait(START_DELAY)
+
+-- ================== MAIN LOOP (poll) ==================
 task.spawn(function()
     while true do
         local ok_req, response = pcall(function()
@@ -970,9 +976,9 @@ task.spawn(function()
         end
 
         if jobFound then
-            task.wait(POLL_INTERVAL)   -- có job → 2s nữa hỏi tiếp
+            task.wait(POLL_INTERVAL)   -- có job → chờ 3s rồi mới hỏi tiếp
         else
-            task.wait(RETRY_INTERVAL)  -- không job → 1s nữa hỏi lại
+            task.wait(RETRY_INTERVAL)  -- không job → chờ 3s rồi hỏi lại
         end
     end
 end)
