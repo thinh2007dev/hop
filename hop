@@ -547,8 +547,8 @@ end
 -- ⚙️ DELAY CÁC WEBHOOK (0 = gửi ngay)
 -- ==================================================
 local LOW_DELAY_SEC          = 0   -- 1–9M  → webhook_low
-local INDEX_DELAY_SEC        = 2   -- 10M+  → webhook_index
-local HIGH_NORMAL_DELAY_SEC  = 2   -- 10M+  → webhook_high (không special)
+local INDEX_DELAY_SEC        = 1   -- 10M+  → webhook_index
+local HIGH_NORMAL_DELAY_SEC  = 1   -- 10M+  → webhook_high (không special)
 local HIGH_SPECIAL_DELAY_SEC = 15   -- 10M+  → webhook_high (special)
 local ULTRA_DELAY_SEC        = 0   -- 10M+  → webhook_special (ultra)
 
